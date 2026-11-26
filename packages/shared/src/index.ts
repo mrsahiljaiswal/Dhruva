@@ -1183,6 +1183,213 @@ export const attemptResponseSchema = z.object({
   data: attemptDetailSchema,
 });
 
+export const DISCUSSION_SCOPES = ["RESOURCE", "FORUM"] as const;
+export const discussionScopeSchema = z.enum(DISCUSSION_SCOPES);
+export type DiscussionScope = z.infer<typeof discussionScopeSchema>;
+
+export const DISCUSSION_CATEGORIES = [
+  "PROGRAMMING",
+  "MATHEMATICS",
+  "DSA",
+  "BRANCH",
+  "GENERAL",
+  "ANNOUNCEMENTS",
+] as const;
+export const discussionCategorySchema = z.enum(DISCUSSION_CATEGORIES);
+export type DiscussionCategory = z.infer<typeof discussionCategorySchema>;
+
+export const DISCUSSION_STATUSES = ["OPEN", "RESOLVED"] as const;
+export const discussionStatusSchema = z.enum(DISCUSSION_STATUSES);
+export type DiscussionStatus = z.infer<typeof discussionStatusSchema>;
+
+export const DISCUSSION_FILTERS = ["OPEN", "RESOLVED", "UNANSWERED"] as const;
+export const discussionFilterSchema = z.enum(DISCUSSION_FILTERS);
+export type DiscussionFilter = z.infer<typeof discussionFilterSchema>;
+
+export const REACTION_TARGETS = ["POST", "COMMENT"] as const;
+export const reactionTargetSchema = z.enum(REACTION_TARGETS);
+export type ReactionTarget = z.infer<typeof reactionTargetSchema>;
+
+export const REACTION_KINDS = ["HELPFUL", "LIKE"] as const;
+export const reactionKindSchema = z.enum(REACTION_KINDS);
+export type ReactionKind = z.infer<typeof reactionKindSchema>;
+
+export const REPORT_TARGETS = ["POST", "COMMENT", "USER"] as const;
+export const reportTargetSchema = z.enum(REPORT_TARGETS);
+export type ReportTarget = z.infer<typeof reportTargetSchema>;
+
+export const REPORT_STATUSES = ["OPEN", "DISMISSED", "ACTION_TAKEN"] as const;
+export const reportStatusSchema = z.enum(REPORT_STATUSES);
+export type ReportStatus = z.infer<typeof reportStatusSchema>;
+
+const discussionText = {
+  title: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(20_000),
+  codeSnippet: z.string().max(20_000).nullable().optional(),
+};
+
+export const createDoubtSchema = z
+  .object({
+    title: discussionText.title,
+    body: discussionText.body,
+    codeSnippet: discussionText.codeSnippet,
+  })
+  .strict();
+export type CreateDoubtInput = z.infer<typeof createDoubtSchema>;
+
+export const createForumPostSchema = z
+  .object({
+    title: discussionText.title,
+    body: discussionText.body,
+    category: discussionCategorySchema,
+    codeSnippet: discussionText.codeSnippet,
+  })
+  .strict();
+export type CreateForumPostInput = z.infer<typeof createForumPostSchema>;
+
+export const createCommentSchema = z
+  .object({
+    body: discussionText.body,
+    parentCommentId: z.string().trim().min(1).nullable().optional(),
+  })
+  .strict();
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+
+export const acceptAnswerSchema = z
+  .object({
+    commentId: z.string().trim().min(1),
+  })
+  .strict();
+export type AcceptAnswerInput = z.infer<typeof acceptAnswerSchema>;
+
+export const reasonSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
+export type ReasonInput = z.infer<typeof reasonSchema>;
+
+export const createReportSchema = z
+  .object({
+    targetType: reportTargetSchema,
+    targetId: z.string().trim().min(1).max(80),
+    reason: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
+export type CreateReportInput = z.infer<typeof createReportSchema>;
+
+export const reactionWriteSchema = z
+  .object({
+    targetType: reactionTargetSchema,
+    targetId: z.string().trim().min(1).max(80),
+    kind: reactionKindSchema,
+  })
+  .strict();
+export type ReactionWrite = z.infer<typeof reactionWriteSchema>;
+
+export const forumListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(PAGINATION.maxLimit).default(PAGINATION.defaultLimit),
+    category: discussionCategorySchema.optional(),
+    status: discussionFilterSchema.optional(),
+    q: z.string().trim().min(1).max(80).optional(),
+  })
+  .strict();
+export type ForumListQuery = z.infer<typeof forumListQuerySchema>;
+
+export const resourcePostQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(PAGINATION.maxLimit).default(PAGINATION.defaultLimit),
+    status: discussionFilterSchema.optional(),
+    q: z.string().trim().min(1).max(80).optional(),
+  })
+  .strict();
+export type ResourcePostQuery = z.infer<typeof resourcePostQuerySchema>;
+
+export const discussionPostSchema = z.object({
+  id: z.string(),
+  scope: discussionScopeSchema,
+  resourceId: z.string().nullable(),
+  category: discussionCategorySchema.nullable(),
+  authorId: z.string(),
+  authorName: z.string(),
+  title: z.string(),
+  body: z.string(),
+  codeSnippet: z.string().nullable(),
+  status: discussionStatusSchema,
+  acceptedCommentId: z.string().nullable(),
+  highlighted: z.boolean(),
+  replyCount: z.number(),
+  helpfulCount: z.number(),
+  likeCount: z.number(),
+  viewerHelpful: z.boolean(),
+  viewerLike: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type DiscussionPost = z.infer<typeof discussionPostSchema>;
+
+export const discussionCommentSchema = z.object({
+  id: z.string(),
+  postId: z.string(),
+  parentCommentId: z.string().nullable(),
+  authorId: z.string(),
+  authorName: z.string(),
+  body: z.string(),
+  helpfulCount: z.number(),
+  likeCount: z.number(),
+  viewerHelpful: z.boolean(),
+  viewerLike: z.boolean(),
+  accepted: z.boolean(),
+  createdAt: z.string(),
+});
+export type DiscussionComment = z.infer<typeof discussionCommentSchema>;
+
+export const discussionThreadSchema = discussionPostSchema.extend({
+  comments: z.array(discussionCommentSchema),
+});
+export type DiscussionThread = z.infer<typeof discussionThreadSchema>;
+
+export const discussionListResponseSchema = z.object({
+  data: z.array(discussionPostSchema),
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+});
+
+export const discussionResponseSchema = z.object({
+  data: discussionPostSchema,
+});
+
+export const discussionThreadResponseSchema = z.object({
+  data: discussionThreadSchema,
+});
+
+export const reportViewSchema = z.object({
+  id: z.string(),
+  targetType: reportTargetSchema,
+  targetId: z.string(),
+  reportedBy: z.string(),
+  reason: z.string(),
+  status: reportStatusSchema,
+  createdAt: z.string(),
+});
+export type ReportView = z.infer<typeof reportViewSchema>;
+
+export const reportResponseSchema = z.object({
+  data: reportViewSchema,
+});
+
+export const reactionResultSchema = z.object({
+  targetType: reactionTargetSchema,
+  targetId: z.string(),
+  kind: reactionKindSchema,
+  active: z.boolean(),
+});
+export type ReactionResult = z.infer<typeof reactionResultSchema>;
+
 export const errorCodes = {
   validation: "VALIDATION_ERROR",
   unauthenticated: "UNAUTHENTICATED",

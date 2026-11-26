@@ -21,6 +21,7 @@ import { createMongoWorkRepository } from "./modules/learning/work.js";
 import { createMongoSubmissionRepository } from "./modules/submissions/repository.js";
 import { codeExecutionOff, ManualReviewRunner } from "./modules/submissions/runner.js";
 import { createMongoAssessmentRepository } from "./modules/assessments/repository.js";
+import { createMongoDiscussionRepository } from "./modules/discussions/repository.js";
 import { createMongoResourceRepository } from "./modules/resources/repository.js";
 import { ensureReconcileSchedule, registerReconcileJob } from "./jobs/reconcile-recipients.js";
 import { ensureExpireSchedule, registerExpireJob } from "./jobs/expire-attempts.js";
@@ -120,6 +121,9 @@ async function main(): Promise<void> {
       repository: createMongoResourceRepository(),
       uploads: createMongoUploadRepository(),
       storage: createObjectStorage(env),
+    },
+    discussions: {
+      repository: createMongoDiscussionRepository(),
     },
   });
 

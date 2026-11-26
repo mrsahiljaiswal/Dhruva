@@ -30,6 +30,8 @@ import { createMemorySubmissionRepository, type SubmissionRepository } from "./m
 import { codeExecutionOff, ManualReviewRunner, type CodeRunner, type ExecutionGate } from "./modules/submissions/runner.js";
 import { createAssessmentRouter } from "./modules/assessments/routes.js";
 import { createMemoryAssessmentRepository, type AssessmentRepository } from "./modules/assessments/repository.js";
+import { createDiscussionRouter } from "./modules/discussions/routes.js";
+import { createMemoryDiscussionRepository, type DiscussionRepository } from "./modules/discussions/repository.js";
 import { grantedResourceIds } from "./modules/learning/grants.js";
 import type { UploadIntentRepository } from "./modules/resources/uploads.js";
 import type { ObjectStorage } from "./platform/storage.js";
@@ -68,6 +70,11 @@ export type AppDeps = {
     runner?: CodeRunner;
     execution?: ExecutionGate;
     assessments?: AssessmentRepository;
+  };
+  discussions?: {
+    repository?: DiscussionRepository;
+    reportLimit?: { limit: number; windowMs: number };
+    now?: () => Date;
   };
 };
 
@@ -238,6 +245,26 @@ export function createApp(deps: AppDeps): Express {
             runner: deps.learning.runner ?? new ManualReviewRunner(),
             execution: deps.learning.execution ?? codeExecutionOff,
             now: deps.learning.now,
+          }),
+        );
+      }
+      if (deps.resources) {
+        app.use(
+          API_PREFIX,
+          createDiscussionRouter({
+            users: deps.auth.users,
+            resources: deps.resources.repository,
+            assignments: deps.auth.directory.assignments,
+            discussions: deps.discussions?.repository ?? createMemoryDiscussionRepository(),
+            bus: deps.eventBus,
+            grants: deps.learning
+              ? {
+                  resourceIdsFor: (viewer) =>
+                    grantedResourceIds(deps.learning!.work, deps.auth!.directory!.assignments, viewer),
+                }
+              : undefined,
+            reportLimit: deps.discussions?.reportLimit,
+            now: deps.discussions?.now,
           }),
         );
       }

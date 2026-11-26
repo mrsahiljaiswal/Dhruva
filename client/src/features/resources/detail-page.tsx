@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError, downloadResource, getResource } from "./api";
 import { DIFFICULTY_LABELS, TYPE_LABELS, libraryBase } from "./labels";
+import { DoubtSection } from "@/features/discussions/doubt-section";
 import { MarkdownBody } from "./markdown-body";
 
 function formatSize(bytes: number): string {
@@ -155,6 +156,8 @@ export function ResourceDetailPage() {
           {downloadError ? <p className="text-sm text-destructive">{downloadError}</p> : null}
         </section>
       ) : null}
+
+      <DoubtSection resourceId={resource.id} />
     </article>
   );
 }

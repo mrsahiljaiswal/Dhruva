@@ -12,6 +12,8 @@ import { AssignmentsPage } from "@/features/learning/assignments-page";
 import { PathsPage } from "@/features/learning/paths-page";
 import { StudentWorkPage } from "@/features/learning/student-work-page";
 import { SubmissionPage } from "@/features/learning/submission-page";
+import { ForumPage } from "@/features/discussions/forum-page";
+import { ThreadPage } from "@/features/discussions/thread-page";
 import { ResourceDetailPage } from "@/features/resources/detail-page";
 import { ResourceEditorPage } from "@/features/resources/editor-page";
 import { ResourceLibraryPage } from "@/features/resources/library-page";
@@ -62,6 +64,8 @@ export function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
           <Route path="account/password" element={<ChangePasswordPage />} />
+          <Route path="forum" element={<ForumPage />} />
+          <Route path="forum/:postId" element={<ThreadPage />} />
           <Route path="student/dashboard" element={<RequireRole role="STUDENT"><StudentDashboard /></RequireRole>} />
           <Route path="student/resources" element={<RequireRole role="STUDENT"><ResourceLibraryPage /></RequireRole>} />
           <Route path="student/resources/:id" element={<RequireRole role="STUDENT"><ResourceDetailPage /></RequireRole>} />

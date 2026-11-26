@@ -8,15 +8,18 @@ const NAV_ITEMS: { to: string; label: string; role: Role; author?: boolean }[] =
   { to: "/student/assignments", label: "Assignments", role: "STUDENT" },
   { to: "/student/assessments", label: "Assessments", role: "STUDENT" },
   { to: "/student/resources", label: "Library", role: "STUDENT" },
+  { to: "/forum", label: "Forum", role: "STUDENT" },
   { to: "/mentor/dashboard", label: "Mentor", role: "MENTOR" },
   { to: "/mentor/assignments", label: "Assignments", role: "MENTOR" },
   { to: "/mentor/assessments", label: "Assessments", role: "MENTOR" },
   { to: "/mentor/resources", label: "Library", role: "MENTOR", author: true },
+  { to: "/forum", label: "Forum", role: "MENTOR" },
   { to: "/admin/dashboard", label: "Admin", role: "ADMIN" },
   { to: "/admin/learning-paths", label: "Paths", role: "ADMIN" },
   { to: "/admin/assignments", label: "Assignments", role: "ADMIN" },
   { to: "/admin/assessments", label: "Assessments", role: "ADMIN" },
   { to: "/admin/resources", label: "Library", role: "ADMIN" },
+  { to: "/forum", label: "Forum", role: "ADMIN" },
 ];
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
