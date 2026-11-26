@@ -20,8 +20,10 @@ import { createMongoLearningPathRepository } from "./modules/learning/paths.js";
 import { createMongoWorkRepository } from "./modules/learning/work.js";
 import { createMongoSubmissionRepository } from "./modules/submissions/repository.js";
 import { codeExecutionOff, ManualReviewRunner } from "./modules/submissions/runner.js";
+import { createMongoAssessmentRepository } from "./modules/assessments/repository.js";
 import { createMongoResourceRepository } from "./modules/resources/repository.js";
 import { ensureReconcileSchedule, registerReconcileJob } from "./jobs/reconcile-recipients.js";
+import { ensureExpireSchedule, registerExpireJob } from "./jobs/expire-attempts.js";
 import { createMongoUploadRepository } from "./modules/resources/uploads.js";
 import { createObjectStorage } from "./platform/storage.js";
 import MongoStore from "connect-mongo";
@@ -76,13 +78,17 @@ async function main(): Promise<void> {
   const mentorAssignments = createMongoAssignmentRepository();
   const learningPaths = createMongoLearningPathRepository();
   const work = createMongoWorkRepository();
+  const assessments = createMongoAssessmentRepository();
+  const cohorts = createMongoCohortRepository();
   const agenda = createAgenda(env.MONGODB_URI);
   registerReconcileJob(agenda, { work, users, mentorAssignments, bus });
+  registerExpireJob(agenda, { users, cohorts, mentorAssignments, assessments, bus, runner: new ManualReviewRunner(), execution: codeExecutionOff });
   agenda.on("error", (error: unknown) => {
     logger.error({ err: error }, "job scheduler error");
   });
   await agenda.start();
   await ensureReconcileSchedule(agenda);
+  await ensureExpireSchedule(agenda);
 
   const app = createApp({
     clientOrigin: env.CLIENT_ORIGIN,
@@ -98,7 +104,7 @@ async function main(): Promise<void> {
       secureCookies: env.NODE_ENV === "production",
       sessionStore: MongoStore.create({ mongoUrl: env.MONGODB_URI }),
       directory: {
-        cohorts: createMongoCohortRepository(),
+        cohorts,
         assignments: mentorAssignments,
       },
     },
@@ -108,6 +114,7 @@ async function main(): Promise<void> {
       revisions: createMongoSubmissionRepository(),
       runner: new ManualReviewRunner(),
       execution: codeExecutionOff,
+      assessments,
     },
     resources: {
       repository: createMongoResourceRepository(),

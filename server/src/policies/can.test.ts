@@ -51,6 +51,21 @@ describe("can", () => {
     expect(can(mentor, "plan.view")).toBe(false);
   });
 
+  it("lets an admin or a mentor with the assessment flag write questions, and only an admin publish", () => {
+    const mentor: AuthUser = { ...admin, id: "mentor-1", role: "MENTOR" };
+    const author: AuthUser = {
+      ...mentor,
+      capabilities: { ...mentor.capabilities, canCreateAssessments: true },
+    };
+    expect(can(admin, "assessments.create")).toBe(true);
+    expect(can(admin, "assessments.publish")).toBe(true);
+    expect(can(author, "assessments.create")).toBe(true);
+    expect(can(author, "assessments.publish")).toBe(false);
+    expect(can(mentor, "assessments.create")).toBe(false);
+    expect(can(student, "assessments.create")).toBe(false);
+    expect(can(student, "assessments.publish")).toBe(false);
+  });
+
   it("refuses a deactivated admin", () => {
     expect(can({ ...admin, status: "DEACTIVATED" }, "users.create")).toBe(false);
   });

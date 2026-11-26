@@ -6,6 +6,8 @@ import { Spinner } from "@/components/states/spinner";
 import { homeFor } from "@/features/auth/home";
 import { useAuth } from "@/features/auth/auth-context";
 import { AcceptInvitePage, ChangePasswordPage, ForgotPasswordPage, LoginPage, ResetPasswordPage } from "@/features/auth/pages";
+import { AssessmentsPage } from "@/features/assessments/assessments-page";
+import { AttemptPage } from "@/features/assessments/attempt-page";
 import { AssignmentsPage } from "@/features/learning/assignments-page";
 import { PathsPage } from "@/features/learning/paths-page";
 import { StudentWorkPage } from "@/features/learning/student-work-page";
@@ -63,9 +65,13 @@ export function AppRoutes() {
           <Route path="student/dashboard" element={<RequireRole role="STUDENT"><StudentDashboard /></RequireRole>} />
           <Route path="student/resources" element={<RequireRole role="STUDENT"><ResourceLibraryPage /></RequireRole>} />
           <Route path="student/resources/:id" element={<RequireRole role="STUDENT"><ResourceDetailPage /></RequireRole>} />
+          <Route path="student/assessments" element={<RequireRole role="STUDENT"><AssessmentsPage /></RequireRole>} />
+          <Route path="student/attempts/:attemptId" element={<RequireRole role="STUDENT"><AttemptPage /></RequireRole>} />
           <Route path="student/assignments" element={<RequireRole role="STUDENT"><StudentWorkPage own /></RequireRole>} />
           <Route path="student/assignments/:recipientId" element={<RequireRole role="STUDENT"><SubmissionPage audience="student" /></RequireRole>} />
           <Route path="mentor/dashboard" element={<RequireRole role="MENTOR"><MentorDashboard /></RequireRole>} />
+          <Route path="mentor/assessments" element={<RequireRole role="MENTOR"><AssessmentsPage /></RequireRole>} />
+          <Route path="mentor/attempts/:attemptId" element={<RequireRole role="MENTOR"><AttemptPage /></RequireRole>} />
           <Route path="mentor/assignments" element={<RequireRole role="MENTOR"><AssignmentsPage /></RequireRole>} />
           <Route path="mentor/students/:studentId/assignments" element={<RequireRole role="MENTOR"><StudentWorkPage /></RequireRole>} />
           <Route path="mentor/students/:studentId/assignments/:recipientId" element={<RequireRole role="MENTOR"><SubmissionPage audience="mentor" /></RequireRole>} />
@@ -75,6 +81,8 @@ export function AppRoutes() {
           <Route path="mentor/resources/:id/edit" element={<RequireRole role="MENTOR"><ResourceEditorPage /></RequireRole>} />
           <Route path="admin/dashboard" element={<RequireRole role="ADMIN"><AdminDashboard /></RequireRole>} />
           <Route path="admin/learning-paths" element={<RequireRole role="ADMIN"><PathsPage /></RequireRole>} />
+          <Route path="admin/assessments" element={<RequireRole role="ADMIN"><AssessmentsPage /></RequireRole>} />
+          <Route path="admin/attempts/:attemptId" element={<RequireRole role="ADMIN"><AttemptPage /></RequireRole>} />
           <Route path="admin/assignments" element={<RequireRole role="ADMIN"><AssignmentsPage /></RequireRole>} />
           <Route path="admin/students/:studentId/assignments" element={<RequireRole role="ADMIN"><StudentWorkPage /></RequireRole>} />
           <Route path="admin/students/:studentId/assignments/:recipientId" element={<RequireRole role="ADMIN"><SubmissionPage audience="admin" /></RequireRole>} />

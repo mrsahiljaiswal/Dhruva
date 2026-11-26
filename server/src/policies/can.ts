@@ -25,6 +25,8 @@ export type Action =
   | "paths.manage"
   | "assignments.view"
   | "assignments.create"
+  | "assessments.create"
+  | "assessments.publish"
   | "plan.view";
 
 export type Subject = { type: "profile"; userId: string } | { type: "user" };
@@ -59,6 +61,14 @@ export function can(user: AuthUser, action: Action, subject?: Subject): boolean 
   }
 
   if (action === "paths.manage") {
+    return user.role === "ADMIN";
+  }
+
+  if (action === "assessments.create") {
+    return user.role === "ADMIN" || (user.role === "MENTOR" && user.capabilities.canCreateAssessments);
+  }
+
+  if (action === "assessments.publish") {
     return user.role === "ADMIN";
   }
 

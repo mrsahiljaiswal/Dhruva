@@ -840,6 +840,349 @@ export const dailyPlanSchema = z.object({
 });
 export type DailyPlan = z.infer<typeof dailyPlanSchema>;
 
+export const QUESTION_TYPES = ["MCQ", "MULTI_SELECT", "TRUE_FALSE", "SHORT_ANSWER", "CODING"] as const;
+export const questionTypeSchema = z.enum(QUESTION_TYPES);
+export type QuestionType = z.infer<typeof questionTypeSchema>;
+
+export const ATTEMPT_STATUSES = ["IN_PROGRESS", "SUBMITTED", "EXPIRED", "GRADED"] as const;
+export const attemptStatusSchema = z.enum(ATTEMPT_STATUSES);
+export type AttemptStatus = z.infer<typeof attemptStatusSchema>;
+
+export const questionOptionSchema = z
+  .object({
+    id: z.string().trim().min(1).max(40),
+    text: z.string().trim().min(1).max(500),
+  })
+  .strict();
+export type QuestionOption = z.infer<typeof questionOptionSchema>;
+
+export const answerKeySchema = z
+  .object({
+    optionIds: z.array(z.string().trim().min(1).max(40)).max(20),
+    text: z.string().trim().max(20_000).nullable(),
+  })
+  .strict();
+export type AnswerKey = z.infer<typeof answerKeySchema>;
+
+const questionWriteObject = z
+  .object({
+    type: questionTypeSchema,
+    prompt: z.string().trim().min(1).max(20_000),
+    options: z.array(questionOptionSchema).max(12),
+    answerKey: answerKeySchema,
+    marks: z.number().min(0).max(1_000),
+    topic: z.string().trim().min(1).max(80),
+    difficulty: difficultySchema,
+    language: z.string().trim().min(1).max(40).nullable(),
+    testCases: z.array(testCaseSchema).max(50),
+  })
+  .strict();
+
+function refineQuestion(
+  value: {
+    type: QuestionType;
+    options: QuestionOption[];
+    answerKey: AnswerKey;
+    language: string | null;
+    testCases: TestCase[];
+  },
+  ctx: RefinementCtx,
+): void {
+  const objective = value.type === "MCQ" || value.type === "MULTI_SELECT" || value.type === "TRUE_FALSE";
+  const optionIds = new Set(value.options.map((option) => option.id));
+  if (optionIds.size !== value.options.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["options"], message: "Option ids must be unique." });
+  }
+  if (objective) {
+    if (value.type === "TRUE_FALSE" && value.options.length !== 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["options"],
+        message: "A true or false question needs two options.",
+      });
+    }
+    if (value.type !== "TRUE_FALSE" && value.options.length < 2) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["options"], message: "Add at least two options." });
+    }
+    if (value.type === "MCQ" || value.type === "TRUE_FALSE") {
+      if (value.answerKey.optionIds.length !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["answerKey", "optionIds"],
+          message: "Choose one correct option.",
+        });
+      }
+    } else if (value.answerKey.optionIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["answerKey", "optionIds"],
+        message: "Choose at least one correct option.",
+      });
+    }
+    if (value.answerKey.optionIds.some((id) => !optionIds.has(id))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["answerKey", "optionIds"],
+        message: "The correct option must be one of the choices.",
+      });
+    }
+    if (value.language || value.testCases.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["testCases"],
+        message: "Language and test cases belong on a coding question.",
+      });
+    }
+  }
+  if (value.type === "SHORT_ANSWER" || value.type === "CODING") {
+    if (value.options.length > 0 || value.answerKey.optionIds.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["options"],
+        message: "This question has no options.",
+      });
+    }
+  }
+  if (value.type === "SHORT_ANSWER" && (value.language || value.testCases.length > 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["testCases"],
+      message: "Language and test cases belong on a coding question.",
+    });
+  }
+  if (value.type === "CODING" && !value.language) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["language"], message: "A coding question needs a language." });
+  }
+}
+
+export const createQuestionSchema = questionWriteObject.superRefine(refineQuestion);
+export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
+
+export const questionListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(PAGINATION.maxLimit).default(PAGINATION.defaultLimit),
+    topic: z.string().trim().min(1).max(80).optional(),
+    type: questionTypeSchema.optional(),
+    q: z.string().trim().min(1).max(80).optional(),
+  })
+  .strict();
+export type QuestionListQuery = z.infer<typeof questionListQuerySchema>;
+
+export const questionSchema = z.object({
+  id: z.string(),
+  type: questionTypeSchema,
+  prompt: z.string(),
+  options: z.array(z.object({ id: z.string(), text: z.string() })),
+  answerKey: answerKeySchema,
+  marks: z.number(),
+  topic: z.string(),
+  difficulty: difficultySchema,
+  language: z.string().nullable(),
+  testCases: z.array(
+    z.object({
+      name: z.string(),
+      input: z.string(),
+      expectedOutput: z.string(),
+      hidden: z.boolean(),
+    }),
+  ),
+  createdBy: z.string(),
+  updatedAt: z.string(),
+});
+export type Question = z.infer<typeof questionSchema>;
+
+export const questionListResponseSchema = z.object({
+  data: z.array(questionSchema),
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+});
+
+const assessmentWriteObject = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(10_000),
+    questionIds: z.array(z.string().trim().min(1)).min(1).max(100),
+    durationMin: z.number().int().min(1).max(24 * 60),
+    passingMarks: z.number().min(0).max(100_000),
+    attemptsAllowed: z.number().int().min(1).max(20),
+    availableFrom: z.string().datetime(),
+    availableUntil: z.string().datetime(),
+    answersReleaseAt: z.string().datetime().nullable(),
+    targetType: assignmentTargetSchema,
+    targetIds: z.array(z.string().trim().min(1)).min(1).max(500),
+    branches: z.array(branchSchema).max(BRANCHES.length),
+  })
+  .strict();
+
+export const createAssessmentSchema = assessmentWriteObject.superRefine((value, ctx) => {
+  const seen = new Set<string>();
+  value.questionIds.forEach((id, index) => {
+    if (seen.has(id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["questionIds", index],
+        message: "Each question is included once.",
+      });
+    }
+    seen.add(id);
+  });
+  if (Date.parse(value.availableUntil) <= Date.parse(value.availableFrom)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["availableUntil"],
+      message: "The window must end after it starts.",
+    });
+  }
+  if (value.answersReleaseAt && Date.parse(value.answersReleaseAt) < Date.parse(value.availableFrom)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["answersReleaseAt"],
+      message: "Answers can release only after the window opens.",
+    });
+  }
+  if (value.targetType === "BRANCH" && value.branches.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["branches"], message: "Choose at least one branch." });
+  }
+  if (value.targetType !== "BRANCH" && value.branches.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["branches"],
+      message: "Branches are only used when the target is a branch.",
+    });
+  }
+});
+export type CreateAssessmentInput = z.infer<typeof createAssessmentSchema>;
+
+export const attemptSummarySchema = z.object({
+  id: z.string(),
+  studentId: z.string(),
+  studentName: z.string(),
+  attemptNo: z.number().int(),
+  status: attemptStatusSchema,
+  startedAt: z.string(),
+  expiresAt: z.string(),
+  submittedAt: z.string().nullable(),
+  autoScore: z.number().nullable(),
+  manualScore: z.number().nullable(),
+  totalScore: z.number().nullable(),
+  pendingManual: z.boolean(),
+});
+export type AttemptSummary = z.infer<typeof attemptSummarySchema>;
+
+export const assessmentSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  questionIds: z.array(z.string()),
+  durationMin: z.number(),
+  totalMarks: z.number(),
+  passingMarks: z.number(),
+  attemptsAllowed: z.number(),
+  attemptsUsed: z.number(),
+  availableFrom: z.string(),
+  availableUntil: z.string(),
+  answersReleaseAt: z.string().nullable(),
+  targetType: assignmentTargetSchema,
+  targetIds: z.array(z.string()),
+  branches: z.array(branchSchema),
+  status: resourceStatusSchema,
+  version: z.number(),
+  createdBy: z.string(),
+  publishedAt: z.string().nullable(),
+  updatedAt: z.string(),
+  attempts: z.array(attemptSummarySchema),
+});
+export type AssessmentSummary = z.infer<typeof assessmentSummarySchema>;
+
+export const assessmentListResponseSchema = z.object({
+  data: z.array(assessmentSummarySchema),
+});
+
+export const attemptQuestionSchema = z.object({
+  questionId: z.string(),
+  type: questionTypeSchema,
+  prompt: z.string(),
+  options: z.array(z.object({ id: z.string(), text: z.string() })),
+  marks: z.number(),
+  topic: z.string(),
+  difficulty: difficultySchema,
+  language: z.string().nullable(),
+  testCases: z.array(visibleTestCaseSchema),
+  answerKey: answerKeySchema.optional(),
+});
+export type AttemptQuestion = z.infer<typeof attemptQuestionSchema>;
+
+export const answerValueSchema = z.union([z.string().max(100_000), z.array(z.string().trim().min(1).max(80)).max(20)]);
+export type AnswerValue = z.infer<typeof answerValueSchema>;
+
+export const saveAnswersSchema = z
+  .object({
+    answers: z
+      .array(
+        z
+          .object({
+            questionId: z.string().trim().min(1),
+            value: answerValueSchema,
+          })
+          .strict(),
+      )
+      .max(200),
+  })
+  .strict();
+export type SaveAnswersInput = z.infer<typeof saveAnswersSchema>;
+
+export const gradeAttemptSchema = z
+  .object({
+    marks: z
+      .array(
+        z
+          .object({
+            questionId: z.string().trim().min(1),
+            awarded: z.number().min(0).max(1_000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict();
+export type GradeAttemptInput = z.infer<typeof gradeAttemptSchema>;
+
+export const attemptDetailSchema = z.object({
+  id: z.string(),
+  assessmentId: z.string(),
+  assessmentTitle: z.string(),
+  studentId: z.string(),
+  attemptNo: z.number().int(),
+  assessmentVersion: z.number().int(),
+  questions: z.array(attemptQuestionSchema),
+  answers: z.array(
+    z.object({
+      questionId: z.string(),
+      value: answerValueSchema,
+      autoSavedAt: z.string(),
+    }),
+  ),
+  startedAt: z.string(),
+  expiresAt: z.string(),
+  submittedAt: z.string().nullable(),
+  status: attemptStatusSchema,
+  autoScore: z.number().nullable(),
+  manualScore: z.number().nullable(),
+  totalScore: z.number().nullable(),
+  gradedBy: z.string().nullable(),
+  answersReleased: z.boolean(),
+  passingMarks: z.number(),
+  pendingManual: z.boolean(),
+});
+export type AttemptDetail = z.infer<typeof attemptDetailSchema>;
+
+export const attemptResponseSchema = z.object({
+  data: attemptDetailSchema,
+});
+
 export const errorCodes = {
   validation: "VALIDATION_ERROR",
   unauthenticated: "UNAUTHENTICATED",
