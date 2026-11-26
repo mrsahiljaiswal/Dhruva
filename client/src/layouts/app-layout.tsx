@@ -1,4 +1,4 @@
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/features/auth/auth-context";
+import { NotificationTray } from "@/features/notifications/tray";
 
 function roleLabel(role: string | undefined) {
   if (role === "ADMIN") return "Administrator";
@@ -51,16 +52,7 @@ export function AppLayout() {
             <span className="font-semibold md:hidden">Dhruva</span>
           </div>
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Notifications">
-                  <Bell className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled>No notifications yet</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <NotificationTray />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" aria-label="Open profile menu">

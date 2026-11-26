@@ -12,6 +12,7 @@ export const AUDIT_ACTIONS = [
   "moderation.action_taken",
   "security.access_denied",
   "security.break_glass",
+  "settings.updated",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

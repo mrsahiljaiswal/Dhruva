@@ -14,6 +14,9 @@ import { StudentWorkPage } from "@/features/learning/student-work-page";
 import { SubmissionPage } from "@/features/learning/submission-page";
 import { ForumPage } from "@/features/discussions/forum-page";
 import { ThreadPage } from "@/features/discussions/thread-page";
+import { BreakGlassPage } from "@/features/messaging/break-glass-page";
+import { MessagesPage } from "@/features/messaging/messages-page";
+import { SettingsPage } from "@/features/settings/settings-page";
 import { ResourceDetailPage } from "@/features/resources/detail-page";
 import { ResourceEditorPage } from "@/features/resources/editor-page";
 import { ResourceLibraryPage } from "@/features/resources/library-page";
@@ -45,6 +48,14 @@ function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   return children;
 }
 
+function MessagesGate() {
+  const { user } = useAuth();
+  if (user?.role === "ADMIN") {
+    return <Navigate to="/admin/messages" replace />;
+  }
+  return <MessagesPage />;
+}
+
 function HomeRedirect() {
   const { user } = useAuth();
   if (!user) {
@@ -64,6 +75,7 @@ export function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
           <Route path="account/password" element={<ChangePasswordPage />} />
+          <Route path="messages" element={<MessagesGate />} />
           <Route path="forum" element={<ForumPage />} />
           <Route path="forum/:postId" element={<ThreadPage />} />
           <Route path="student/dashboard" element={<RequireRole role="STUDENT"><StudentDashboard /></RequireRole>} />
@@ -83,6 +95,8 @@ export function AppRoutes() {
           <Route path="mentor/resources/new" element={<RequireRole role="MENTOR"><ResourceEditorPage /></RequireRole>} />
           <Route path="mentor/resources/:id" element={<RequireRole role="MENTOR"><ResourceDetailPage /></RequireRole>} />
           <Route path="mentor/resources/:id/edit" element={<RequireRole role="MENTOR"><ResourceEditorPage /></RequireRole>} />
+          <Route path="admin/messages" element={<RequireRole role="ADMIN"><BreakGlassPage /></RequireRole>} />
+          <Route path="admin/settings" element={<RequireRole role="ADMIN"><SettingsPage /></RequireRole>} />
           <Route path="admin/dashboard" element={<RequireRole role="ADMIN"><AdminDashboard /></RequireRole>} />
           <Route path="admin/learning-paths" element={<RequireRole role="ADMIN"><PathsPage /></RequireRole>} />
           <Route path="admin/assessments" element={<RequireRole role="ADMIN"><AssessmentsPage /></RequireRole>} />

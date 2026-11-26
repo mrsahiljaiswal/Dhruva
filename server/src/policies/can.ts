@@ -27,7 +27,9 @@ export type Action =
   | "assignments.create"
   | "assessments.create"
   | "assessments.publish"
-  | "plan.view";
+  | "plan.view"
+  | "settings.view"
+  | "settings.update";
 
 export type Subject = { type: "profile"; userId: string } | { type: "user" };
 
@@ -74,6 +76,10 @@ export function can(user: AuthUser, action: Action, subject?: Subject): boolean 
 
   if (action === "plan.view") {
     return user.role === "STUDENT";
+  }
+
+  if (action === "settings.view" || action === "settings.update") {
+    return user.role === "ADMIN";
   }
 
   if (action === "profile.view" || action === "profile.update") {

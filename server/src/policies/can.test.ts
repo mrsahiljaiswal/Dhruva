@@ -66,6 +66,14 @@ describe("can", () => {
     expect(can(student, "assessments.publish")).toBe(false);
   });
 
+  it("lets only an admin change platform settings", () => {
+    const mentor: AuthUser = { ...admin, id: "mentor-1", role: "MENTOR" };
+    expect(can(admin, "settings.view")).toBe(true);
+    expect(can(admin, "settings.update")).toBe(true);
+    expect(can(mentor, "settings.update")).toBe(false);
+    expect(can(student, "settings.view")).toBe(false);
+  });
+
   it("refuses a deactivated admin", () => {
     expect(can({ ...admin, status: "DEACTIVATED" }, "users.create")).toBe(false);
   });

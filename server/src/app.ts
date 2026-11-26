@@ -35,6 +35,15 @@ import { createMemoryDiscussionRepository, type DiscussionRepository } from "./m
 import { grantedResourceIds } from "./modules/learning/grants.js";
 import type { UploadIntentRepository } from "./modules/resources/uploads.js";
 import type { ObjectStorage } from "./platform/storage.js";
+import { createMessagingRouter } from "./modules/messaging/routes.js";
+import { createMemoryMessagingRepository, type MessagingRepository } from "./modules/messaging/repository.js";
+import { createMessagingService } from "./modules/messaging/service.js";
+import { createNotificationRouter } from "./modules/notifications/routes.js";
+import { createMemoryNotificationRepository, type NotificationRepository } from "./modules/notifications/repository.js";
+import { createMemoryPreferenceRepository, type PreferenceRepository } from "./modules/notifications/preferences.js";
+import { createSettingsRouter } from "./modules/settings/routes.js";
+import { createMemorySettingsRepository, type SettingsRepository } from "./modules/settings/repository.js";
+import { noopDelivery, type Delivery } from "./realtime/delivery.js";
 
 export type AppDeps = {
   clientOrigin: string;
@@ -74,6 +83,14 @@ export type AppDeps = {
   discussions?: {
     repository?: DiscussionRepository;
     reportLimit?: { limit: number; windowMs: number };
+    now?: () => Date;
+  };
+  messaging?: {
+    repository?: MessagingRepository;
+    settings?: SettingsRepository;
+    notifications?: NotificationRepository;
+    preferences?: PreferenceRepository;
+    delivery?: Delivery;
     now?: () => Date;
   };
 };
@@ -142,22 +159,22 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: "1mb" }));
   if (deps.auth) {
     app.use(cookieParser());
-    app.use(
-      session({
-        name: SESSION_COOKIE,
-        secret: deps.auth.sessionSecret,
-        resave: false,
-        saveUninitialized: false,
-        rolling: true,
-        store: deps.auth.sessionStore,
-        cookie: {
-          httpOnly: true,
-          sameSite: "lax",
-          secure: deps.auth.secureCookies,
-          maxAge: SESSION_IDLE_MS,
-        },
-      }),
-    );
+    const sessions = session({
+      name: SESSION_COOKIE,
+      secret: deps.auth.sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      rolling: true,
+      store: deps.auth.sessionStore,
+      cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: deps.auth.secureCookies,
+        maxAge: SESSION_IDLE_MS,
+      },
+    });
+    app.locals.session = sessions;
+    app.use(sessions);
     app.use(requireCsrf());
   }
   app.use(API_PREFIX, healthRouter(deps.isDbReady));
@@ -248,6 +265,53 @@ export function createApp(deps: AppDeps): Express {
           }),
         );
       }
+      const messagingRepository = deps.messaging?.repository ?? createMemoryMessagingRepository();
+      const settings = deps.messaging?.settings ?? createMemorySettingsRepository();
+      const notifications = deps.messaging?.notifications ?? createMemoryNotificationRepository();
+      const preferences = deps.messaging?.preferences ?? createMemoryPreferenceRepository();
+      const delivery = deps.messaging?.delivery ?? noopDelivery;
+      const messagingService = createMessagingService({
+        users: deps.auth.users,
+        assignments: deps.auth.directory.assignments,
+        settings,
+        messaging: messagingRepository,
+        bus: deps.eventBus,
+        delivery,
+        uploads: deps.resources?.uploads,
+        storage: deps.resources?.storage,
+        now: deps.messaging?.now,
+      });
+      app.locals.messaging = messagingService;
+      app.use(
+        API_PREFIX,
+        createSettingsRouter({
+          users: deps.auth.users,
+          settings,
+          bus: deps.eventBus,
+        }),
+      );
+      app.use(
+        API_PREFIX,
+        createMessagingRouter({
+          users: deps.auth.users,
+          assignments: deps.auth.directory.assignments,
+          settings,
+          messaging: messagingRepository,
+          bus: deps.eventBus,
+          delivery,
+          service: messagingService,
+        }),
+      );
+      app.use(
+        API_PREFIX,
+        createNotificationRouter({
+          users: deps.auth.users,
+          notifications,
+          preferences,
+          bus: deps.eventBus,
+          now: deps.messaging?.now,
+        }),
+      );
       if (deps.resources) {
         app.use(
           API_PREFIX,

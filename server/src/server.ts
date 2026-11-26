@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
+import type { RequestHandler } from "express";
 import mongoose from "mongoose";
 import { loadEnv } from "./config/env.js";
 import { createApp } from "./app.js";
@@ -25,6 +27,15 @@ import { createMongoDiscussionRepository } from "./modules/discussions/repositor
 import { createMongoResourceRepository } from "./modules/resources/repository.js";
 import { ensureReconcileSchedule, registerReconcileJob } from "./jobs/reconcile-recipients.js";
 import { ensureExpireSchedule, registerExpireJob } from "./jobs/expire-attempts.js";
+import { ensureDeadlineSchedule, registerDeadlineJob } from "./jobs/deadline-reminders.js";
+import { createMongoMessagingRepository } from "./modules/messaging/repository.js";
+import { createMongoNotificationRepository } from "./modules/notifications/repository.js";
+import { createMongoPreferenceRepository } from "./modules/notifications/preferences.js";
+import { registerNotificationSubscriber } from "./modules/notifications/subscriber.js";
+import { createMongoSettingsRepository } from "./modules/settings/repository.js";
+import { createDeliveryBridge } from "./realtime/delivery.js";
+import { attachRealtime } from "./realtime/socket.js";
+import type { MessagingService } from "./modules/messaging/service.js";
 import { createMongoUploadRepository } from "./modules/resources/uploads.js";
 import { createObjectStorage } from "./platform/storage.js";
 import MongoStore from "connect-mongo";
@@ -50,6 +61,11 @@ async function main(): Promise<void> {
 
   const bus = new EventBus(logger);
   registerAuditSubscriber(bus);
+  const messagingRepository = createMongoMessagingRepository();
+  const settings = createMongoSettingsRepository();
+  const notifications = createMongoNotificationRepository();
+  const preferences = createMongoPreferenceRepository();
+  const delivery = createDeliveryBridge();
   const mailer = createMailer({
     logger,
     from: env.EMAIL_FROM,
@@ -65,6 +81,14 @@ async function main(): Promise<void> {
         : undefined,
   });
   const users = createMongoUserRepository();
+  registerNotificationSubscriber(bus, {
+    users,
+    notifications,
+    preferences,
+    mailer,
+    delivery,
+    logger,
+  });
   const authService = new AuthService({
     users,
     tokens: createMongoTokenRepository(),
@@ -84,12 +108,14 @@ async function main(): Promise<void> {
   const agenda = createAgenda(env.MONGODB_URI);
   registerReconcileJob(agenda, { work, users, mentorAssignments, bus });
   registerExpireJob(agenda, { users, cohorts, mentorAssignments, assessments, bus, runner: new ManualReviewRunner(), execution: codeExecutionOff });
+  registerDeadlineJob(agenda, { users, notifications, preferences, mailer, delivery, logger, work, assignments: mentorAssignments });
   agenda.on("error", (error: unknown) => {
     logger.error({ err: error }, "job scheduler error");
   });
   await agenda.start();
   await ensureReconcileSchedule(agenda);
   await ensureExpireSchedule(agenda);
+  await ensureDeadlineSchedule(agenda);
 
   const app = createApp({
     clientOrigin: env.CLIENT_ORIGIN,
@@ -125,9 +151,24 @@ async function main(): Promise<void> {
     discussions: {
       repository: createMongoDiscussionRepository(),
     },
+    messaging: {
+      repository: messagingRepository,
+      settings,
+      notifications,
+      preferences,
+      delivery,
+    },
   });
 
-  const server = app.listen(env.PORT, () => {
+  const server = createServer(app);
+  const realtime = attachRealtime(server, {
+    clientOrigin: env.CLIENT_ORIGIN,
+    session: app.locals.session as RequestHandler,
+    users,
+    messaging: app.locals.messaging as MessagingService,
+    bridge: delivery,
+  });
+  server.listen(env.PORT, () => {
     logger.info({ port: env.PORT }, "API listening");
   });
 
@@ -140,9 +181,7 @@ async function main(): Promise<void> {
     logger.info({ signal }, "shutting down");
 
     await Promise.race([
-      new Promise<void>((resolveClose, rejectClose) => {
-        server.close((error) => (error ? rejectClose(error) : resolveClose()));
-      }),
+      realtime.close(),
       new Promise((resolveClose) => setTimeout(resolveClose, SHUTDOWN_MS)),
     ]);
     await agenda.stop();

@@ -1390,6 +1390,199 @@ export const reactionResultSchema = z.object({
 });
 export type ReactionResult = z.infer<typeof reactionResultSchema>;
 
+export const CONVERSATION_TYPES = ["DIRECT", "GROUP"] as const;
+export const conversationTypeSchema = z.enum(CONVERSATION_TYPES);
+export type ConversationType = z.infer<typeof conversationTypeSchema>;
+
+export const CONVERSATION_PURPOSES = ["MENTORSHIP", "PEER", "GROUP"] as const;
+export const conversationPurposeSchema = z.enum(CONVERSATION_PURPOSES);
+export type ConversationPurpose = z.infer<typeof conversationPurposeSchema>;
+
+export const NOTIFICATION_TYPES = [
+  "ASSIGNMENT_PUBLISHED",
+  "DEADLINE_UPCOMING",
+  "MENTOR_FEEDBACK",
+  "DOUBT_REPLY",
+  "DOUBT_ASKED",
+  "MESSAGE",
+  "ANNOUNCEMENT",
+  "MENTOR_REASSIGNED",
+  "DISCUSSION_REPORTED",
+  "BREAK_GLASS",
+] as const;
+export const notificationTypeSchema = z.enum(NOTIFICATION_TYPES);
+export type NotificationType = z.infer<typeof notificationTypeSchema>;
+
+const participantRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: roleSchema,
+});
+
+export const conversationSchema = z.object({
+  id: z.string(),
+  type: conversationTypeSchema,
+  purpose: conversationPurposeSchema,
+  title: z.string().nullable(),
+  participants: z.array(participantRefSchema),
+  lastMessageAt: z.string().nullable(),
+  unreadCount: z.number().int(),
+  writable: z.boolean(),
+});
+export type Conversation = z.infer<typeof conversationSchema>;
+
+export const messageAttachmentSchema = z.object({
+  storageKey: z.string(),
+  fileName: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int(),
+});
+export type MessageAttachment = z.infer<typeof messageAttachmentSchema>;
+
+export const messageSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  senderId: z.string(),
+  senderName: z.string(),
+  body: z.string(),
+  attachments: z.array(messageAttachmentSchema),
+  sentAt: z.string(),
+  readBy: z.array(z.object({ userId: z.string(), readAt: z.string() })),
+});
+export type ChatMessage = z.infer<typeof messageSchema>;
+
+export const openConversationSchema = z.union([
+  z.object({ type: z.literal("DIRECT"), participantId: z.string().trim().min(1).max(80) }).strict(),
+  z.object({ type: z.literal("DIRECT"), withMentor: z.literal(true) }).strict(),
+  z.object({ type: z.literal("DIRECT"), email: emailSchema }).strict(),
+  z
+    .object({
+      type: z.literal("GROUP"),
+      participantIds: z.array(z.string().trim().min(1).max(80)).min(2).max(20),
+      title: z.string().trim().min(1).max(120).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("GROUP"),
+      emails: z.array(emailSchema).min(2).max(20),
+      title: z.string().trim().min(1).max(120).optional(),
+    })
+    .strict(),
+]);
+export type OpenConversationInput = z.infer<typeof openConversationSchema>;
+
+export const sendMessageSchema = z
+  .object({
+    body: z.string().trim().min(1).max(5_000),
+    attachments: z.array(z.string().trim().min(1).max(300)).max(5).optional(),
+  })
+  .strict();
+export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+
+export const markReadSchema = z
+  .object({
+    messageId: z.string().trim().min(1).max(80),
+  })
+  .strict();
+export type MarkReadInput = z.infer<typeof markReadSchema>;
+
+export const messageListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(PAGINATION.maxLimit).default(PAGINATION.defaultLimit),
+  })
+  .strict();
+export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
+
+export const conversationListResponseSchema = z.object({
+  data: z.array(conversationSchema),
+});
+
+export const conversationResponseSchema = z.object({
+  data: conversationSchema,
+});
+
+export const messageListResponseSchema = z.object({
+  data: z.array(messageSchema),
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+});
+
+export const messageResponseSchema = z.object({
+  data: messageSchema,
+});
+
+export const notificationSchema = z.object({
+  id: z.string(),
+  type: notificationTypeSchema,
+  text: z.string(),
+  payload: z.record(z.string()),
+  readAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type Notification = z.infer<typeof notificationSchema>;
+
+export const notificationListResponseSchema = z.object({
+  data: z.array(notificationSchema),
+  unread: z.number().int().default(0),
+});
+
+export const notificationPreferencesSchema = z.object({
+  email: z.boolean(),
+});
+export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
+
+export const notificationPreferencesResponseSchema = z.object({
+  data: notificationPreferencesSchema,
+});
+
+export const updateNotificationPreferencesSchema = notificationPreferencesSchema.strict();
+
+export const messagingFeaturesSchema = z.object({
+  studentDirectMessages: z.boolean(),
+  groupChat: z.boolean(),
+});
+export type MessagingFeatures = z.infer<typeof messagingFeaturesSchema>;
+
+export const messagingFeaturesResponseSchema = z.object({
+  data: messagingFeaturesSchema,
+});
+
+export const platformSettingsSchema = messagingFeaturesSchema.extend({
+  version: z.number().int(),
+});
+export type PlatformSettings = z.infer<typeof platformSettingsSchema>;
+
+export const platformSettingsResponseSchema = z.object({
+  data: platformSettingsSchema,
+});
+
+export const updatePlatformSettingsSchema = z
+  .object({
+    studentDirectMessages: z.boolean().optional(),
+    groupChat: z.boolean().optional(),
+  })
+  .strict()
+  .refine((value) => value.studentDirectMessages !== undefined || value.groupChat !== undefined, {
+    message: "Change at least one setting.",
+  });
+export type UpdatePlatformSettingsInput = z.infer<typeof updatePlatformSettingsSchema>;
+
+export const socketJoinSchema = z
+  .object({
+    conversationId: z.string().trim().min(1).max(80),
+  })
+  .strict();
+
+export const socketSendSchema = z
+  .object({
+    conversationId: z.string().trim().min(1).max(80),
+    body: z.string().trim().min(1).max(5_000),
+  })
+  .strict();
+
 export const errorCodes = {
   validation: "VALIDATION_ERROR",
   unauthenticated: "UNAUTHENTICATED",
