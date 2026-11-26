@@ -6,13 +6,20 @@ import {
   learningPathDetailSchema,
   learningPathSummarySchema,
   recipientViewSchema,
+  submissionResultSchema,
+  submissionRevisionSchema,
+  uploadSlotResponseSchema,
   type AssignmentDefinition,
   type CreateAssignmentInput,
+  type CreateSubmissionInput,
   type DailyPlan,
   type LearningPathDetail,
   type LearningPathSummary,
   type LearningPathWrite,
   type RecipientView,
+  type ReviewSubmissionInput,
+  type SubmissionResult,
+  type SubmissionRevision,
 } from "@dhruva/shared";
 
 export class ApiError extends Error {
@@ -113,6 +120,60 @@ export async function createAssignment(input: CreateAssignmentInput): Promise<As
 export async function publishAssignment(id: string, revision: number): Promise<AssignmentDefinition> {
   const response = await request(`/assignments/${id}/publish`, { method: "POST", headers: matchHeader(revision) });
   return assignmentDefinitionSchema.parse((await response.json()).data);
+}
+
+export async function startAssignment(recipientId: string): Promise<RecipientView> {
+  const response = await request(`/recipients/${recipientId}/start`, { method: "POST" });
+  return recipientViewSchema.parse((await response.json()).data);
+}
+
+export async function listSubmissions(recipientId: string): Promise<SubmissionRevision[]> {
+  const response = await request(`/recipients/${recipientId}/submissions`);
+  return submissionRevisionSchema.array().parse((await response.json()).data);
+}
+
+export async function submitRevision(recipientId: string, idempotencyKey: string, body: CreateSubmissionInput): Promise<SubmissionResult> {
+  const response = await request(`/recipients/${recipientId}/submissions`, {
+    method: "POST",
+    headers: { "idempotency-key": idempotencyKey },
+    body: JSON.stringify(body),
+  });
+  return submissionResultSchema.parse((await response.json()).data);
+}
+
+export async function uploadSubmissionFile(recipientId: string, file: File): Promise<string> {
+  const slotResponse = await request(`/recipients/${recipientId}/uploads`, {
+    method: "POST",
+    body: JSON.stringify({ fileName: file.name, mimeType: file.type, sizeBytes: file.size }),
+  });
+  const slot = uploadSlotResponseSchema.parse(await slotResponse.json()).data;
+  if (slot.method === "PUT") {
+    const uploaded = await fetch(slot.uploadUrl, { method: "PUT", headers: slot.headers, body: file });
+    if (!uploaded.ok) {
+      throw new ApiError("The file could not be uploaded.", uploaded.status);
+    }
+  } else {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(slot.fields)) {
+      form.append(key, value);
+    }
+    form.append("file", file);
+    const uploaded = await fetch(slot.uploadUrl, { method: "POST", body: form });
+    if (!uploaded.ok) {
+      throw new ApiError("The file could not be uploaded.", uploaded.status);
+    }
+  }
+  return slot.storageKey;
+}
+
+export async function openSubmissionReview(revisionId: string): Promise<SubmissionResult> {
+  const response = await request(`/submissions/${revisionId}/open`, { method: "POST" });
+  return submissionResultSchema.parse((await response.json()).data);
+}
+
+export async function reviewSubmission(revisionId: string, input: ReviewSubmissionInput): Promise<SubmissionResult> {
+  const response = await request(`/submissions/${revisionId}/review`, { method: "POST", body: JSON.stringify(input) });
+  return submissionResultSchema.parse((await response.json()).data);
 }
 
 export async function archiveAssignment(id: string, revision: number): Promise<AssignmentDefinition> {

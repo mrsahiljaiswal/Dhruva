@@ -233,10 +233,11 @@ export const resourceMimeTypeSchema = z.enum(RESOURCE_MIME_TYPES);
 export type ResourceMimeType = z.infer<typeof resourceMimeTypeSchema>;
 
 export const RESOURCE_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+export const SUBMISSION_MAX_BYTES = 10 * 1024 * 1024;
 export const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 export const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 
-const httpUrlSchema = z
+export const httpUrlSchema = z
   .string()
   .trim()
   .url("Use an http or https link.")
@@ -455,6 +456,10 @@ export type Priority = z.infer<typeof prioritySchema>;
 export const SUBMISSION_TYPES = ["TEXT", "FILE", "REPOSITORY", "EDITOR_LINK", "NONE"] as const;
 export const submissionTypeSchema = z.enum(SUBMISSION_TYPES);
 export type SubmissionType = z.infer<typeof submissionTypeSchema>;
+
+export const SUBMISSION_STATUSES = ["PENDING", "APPROVED", "REVISION_REQUESTED"] as const;
+export const submissionStatusSchema = z.enum(SUBMISSION_STATUSES);
+export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
 
 export const RECIPIENT_STATES = [
   "NOT_STARTED",
@@ -690,6 +695,107 @@ export const recipientViewSchema = z.object({
   }),
 });
 export type RecipientView = z.infer<typeof recipientViewSchema>;
+
+export const githubRepositorySchema = z
+  .string()
+  .trim()
+  .max(300)
+  .url("Use a GitHub repository link.")
+  .refine((value) => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return false;
+    }
+    if (url.protocol !== "https:" || url.hostname !== "github.com") {
+      return false;
+    }
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length !== 2) {
+      return false;
+    }
+    const owner = parts[0] ?? "";
+    const name = (parts[1] ?? "").replace(/\.git$/i, "");
+    return /^[A-Za-z0-9_.-]+$/.test(owner) && /^[A-Za-z0-9_.-]+$/.test(name);
+  }, "Use a GitHub repository link.");
+
+export const editorLinkSchema = httpUrlSchema.refine((value) => value.length <= 2_000, "Use a shorter link.");
+
+export const createSubmissionSchema = z.union([
+  z.object({ textAnswer: z.string().trim().min(1).max(100_000) }).strict(),
+  z.object({ fileKey: z.string().trim().min(1).max(300) }).strict(),
+  z.object({ repositoryUrl: githubRepositorySchema }).strict(),
+  z.object({ editorUrl: editorLinkSchema }).strict(),
+]);
+export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
+
+export const submissionUploadSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(200),
+    mimeType: resourceMimeTypeSchema,
+    sizeBytes: z.number().int().positive().max(SUBMISSION_MAX_BYTES),
+  })
+  .strict();
+export type SubmissionUploadInput = z.infer<typeof submissionUploadSchema>;
+
+export const rubricScoreSchema = z
+  .object({
+    criterion: z.string().trim().min(1).max(200),
+    points: z.number().int().min(0).max(1_000),
+  })
+  .strict();
+export type RubricScore = z.infer<typeof rubricScoreSchema>;
+
+export const reviewSubmissionSchema = z
+  .object({
+    decision: z.enum(["APPROVE", "REQUEST_CHANGES"]),
+    feedback: z.string().trim().min(1).max(10_000),
+    score: z.number().min(0).max(1_000).nullable(),
+    rubricScores: z.array(rubricScoreSchema).max(20),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.decision === "APPROVE" && value.score === null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["score"], message: "An approval needs a score." });
+    }
+    if (value.decision === "REQUEST_CHANGES" && value.score !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["score"],
+        message: "A score is recorded when the work is approved.",
+      });
+    }
+  });
+export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
+
+export const submissionRevisionSchema = z.object({
+  id: z.string(),
+  recipientId: z.string(),
+  studentId: z.string(),
+  revisionNo: z.number().int(),
+  submissionType: submissionTypeSchema,
+  textAnswer: z.string().nullable(),
+  fileKey: z.string().nullable(),
+  fileName: z.string().nullable(),
+  repositoryUrl: z.string().nullable(),
+  editorUrl: z.string().nullable(),
+  resourceVersion: z.number().int().nullable(),
+  submittedAt: z.string(),
+  status: submissionStatusSchema,
+  score: z.number().nullable(),
+  rubricScores: z.array(z.object({ criterion: z.string(), points: z.number() })),
+  feedback: z.string().nullable(),
+  reviewedBy: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+});
+export type SubmissionRevision = z.infer<typeof submissionRevisionSchema>;
+
+export const submissionResultSchema = z.object({
+  revision: submissionRevisionSchema,
+  recipient: recipientViewSchema,
+});
+export type SubmissionResult = z.infer<typeof submissionResultSchema>;
 
 export const planQuerySchema = z
   .object({

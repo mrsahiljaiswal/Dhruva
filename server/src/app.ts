@@ -25,6 +25,9 @@ import type { ResourceRepository } from "./modules/resources/repository.js";
 import { createLearningRouter } from "./modules/learning/routes.js";
 import type { LearningPathRepository } from "./modules/learning/paths.js";
 import type { WorkRepository } from "./modules/learning/work.js";
+import { createSubmissionRouter } from "./modules/submissions/routes.js";
+import { createMemorySubmissionRepository, type SubmissionRepository } from "./modules/submissions/repository.js";
+import { codeExecutionOff, ManualReviewRunner, type CodeRunner, type ExecutionGate } from "./modules/submissions/runner.js";
 import { grantedResourceIds } from "./modules/learning/grants.js";
 import type { UploadIntentRepository } from "./modules/resources/uploads.js";
 import type { ObjectStorage } from "./platform/storage.js";
@@ -59,6 +62,9 @@ export type AppDeps = {
     paths: LearningPathRepository;
     work: WorkRepository;
     now?: () => Date;
+    revisions?: SubmissionRepository;
+    runner?: CodeRunner;
+    execution?: ExecutionGate;
   };
 };
 
@@ -199,6 +205,22 @@ export function createApp(deps: AppDeps): Express {
             paths: deps.learning.paths,
             work: deps.learning.work,
             bus: deps.eventBus,
+            now: deps.learning.now,
+          }),
+        );
+        app.use(
+          API_PREFIX,
+          createSubmissionRouter({
+            users: deps.auth.users,
+            mentorAssignments: deps.auth.directory.assignments,
+            resources: deps.resources.repository,
+            work: deps.learning.work,
+            revisions: deps.learning.revisions ?? createMemorySubmissionRepository(),
+            uploads: deps.resources.uploads,
+            storage: deps.resources.storage,
+            bus: deps.eventBus,
+            runner: deps.learning.runner ?? new ManualReviewRunner(),
+            execution: deps.learning.execution ?? codeExecutionOff,
             now: deps.learning.now,
           }),
         );

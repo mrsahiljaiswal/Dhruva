@@ -18,6 +18,8 @@ import { createMongoCohortRepository } from "./modules/cohorts/repository.js";
 import { createMongoAssignmentRepository } from "./modules/mentors/assignments.js";
 import { createMongoLearningPathRepository } from "./modules/learning/paths.js";
 import { createMongoWorkRepository } from "./modules/learning/work.js";
+import { createMongoSubmissionRepository } from "./modules/submissions/repository.js";
+import { codeExecutionOff, ManualReviewRunner } from "./modules/submissions/runner.js";
 import { createMongoResourceRepository } from "./modules/resources/repository.js";
 import { ensureReconcileSchedule, registerReconcileJob } from "./jobs/reconcile-recipients.js";
 import { createMongoUploadRepository } from "./modules/resources/uploads.js";
@@ -103,6 +105,9 @@ async function main(): Promise<void> {
     learning: {
       paths: learningPaths,
       work,
+      revisions: createMongoSubmissionRepository(),
+      runner: new ManualReviewRunner(),
+      execution: codeExecutionOff,
     },
     resources: {
       repository: createMongoResourceRepository(),

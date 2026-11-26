@@ -64,6 +64,33 @@ export interface WorkRepository {
   listRecipientsForStudent(studentId: string): Promise<RecipientRecord[]>;
   listRecipientsForStudents(studentIds: string[]): Promise<RecipientRecord[]>;
   resourceIdsForStudents(studentIds: string[]): Promise<Set<string>>;
+  findRecipient(id: string): Promise<RecipientRecord | null>;
+  transitionRecipient(id: string, from: RecipientState[], patch: RecipientPatch): Promise<RecipientRecord | "stale" | null>;
+}
+
+export type RecipientPatch = {
+  state: RecipientState;
+  startedAt?: Date | null;
+  submittedAt?: Date | null;
+  completedAt?: Date | null;
+  score?: number | null;
+};
+
+function recipientSet(patch: RecipientPatch): Record<string, unknown> {
+  const set: Record<string, unknown> = { state: patch.state };
+  if (patch.startedAt !== undefined) {
+    set.startedAt = patch.startedAt;
+  }
+  if (patch.submittedAt !== undefined) {
+    set.submittedAt = patch.submittedAt;
+  }
+  if (patch.completedAt !== undefined) {
+    set.completedAt = patch.completedAt;
+  }
+  if (patch.score !== undefined) {
+    set.score = patch.score;
+  }
+  return set;
 }
 
 function recipientFor(assignmentId: string, studentId: string): RecipientRecord {
@@ -218,6 +245,21 @@ export function createMemoryWorkRepository(): WorkRepository {
     },
     async resourceIdsForStudents(studentIds) {
       return countsFor(studentIds);
+    },
+    async findRecipient(id) {
+      const found = recipients.find((row) => row.id === id);
+      return found ? { ...found } : null;
+    },
+    async transitionRecipient(id, from, patch) {
+      const found = recipients.find((row) => row.id === id);
+      if (!found) {
+        return null;
+      }
+      if (!from.includes(found.state)) {
+        return "stale";
+      }
+      Object.assign(found, recipientSet(patch));
+      return { ...found };
     },
   };
 }
@@ -561,6 +603,28 @@ export function createMongoWorkRepository(): WorkRepository {
         }
       }
       return ids;
+    },
+    async findRecipient(id) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await RecipientModel.findById(id).lean();
+      return doc ? toRecipient(doc) : null;
+    },
+    async transitionRecipient(id, from, patch) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await RecipientModel.findOneAndUpdate(
+        { _id: id, state: { $in: from } },
+        { $set: recipientSet(patch) },
+        { new: true },
+      ).lean();
+      if (doc) {
+        return toRecipient(doc);
+      }
+      const current = await RecipientModel.findById(id).lean();
+      return current ? "stale" : null;
     },
   };
 }

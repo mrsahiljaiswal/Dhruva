@@ -9,6 +9,7 @@ import { AcceptInvitePage, ChangePasswordPage, ForgotPasswordPage, LoginPage, Re
 import { AssignmentsPage } from "@/features/learning/assignments-page";
 import { PathsPage } from "@/features/learning/paths-page";
 import { StudentWorkPage } from "@/features/learning/student-work-page";
+import { SubmissionPage } from "@/features/learning/submission-page";
 import { ResourceDetailPage } from "@/features/resources/detail-page";
 import { ResourceEditorPage } from "@/features/resources/editor-page";
 import { ResourceLibraryPage } from "@/features/resources/library-page";
@@ -63,9 +64,11 @@ export function AppRoutes() {
           <Route path="student/resources" element={<RequireRole role="STUDENT"><ResourceLibraryPage /></RequireRole>} />
           <Route path="student/resources/:id" element={<RequireRole role="STUDENT"><ResourceDetailPage /></RequireRole>} />
           <Route path="student/assignments" element={<RequireRole role="STUDENT"><StudentWorkPage own /></RequireRole>} />
+          <Route path="student/assignments/:recipientId" element={<RequireRole role="STUDENT"><SubmissionPage audience="student" /></RequireRole>} />
           <Route path="mentor/dashboard" element={<RequireRole role="MENTOR"><MentorDashboard /></RequireRole>} />
           <Route path="mentor/assignments" element={<RequireRole role="MENTOR"><AssignmentsPage /></RequireRole>} />
           <Route path="mentor/students/:studentId/assignments" element={<RequireRole role="MENTOR"><StudentWorkPage /></RequireRole>} />
+          <Route path="mentor/students/:studentId/assignments/:recipientId" element={<RequireRole role="MENTOR"><SubmissionPage audience="mentor" /></RequireRole>} />
           <Route path="mentor/resources" element={<RequireRole role="MENTOR"><ResourceLibraryPage /></RequireRole>} />
           <Route path="mentor/resources/new" element={<RequireRole role="MENTOR"><ResourceEditorPage /></RequireRole>} />
           <Route path="mentor/resources/:id" element={<RequireRole role="MENTOR"><ResourceDetailPage /></RequireRole>} />
@@ -74,6 +77,7 @@ export function AppRoutes() {
           <Route path="admin/learning-paths" element={<RequireRole role="ADMIN"><PathsPage /></RequireRole>} />
           <Route path="admin/assignments" element={<RequireRole role="ADMIN"><AssignmentsPage /></RequireRole>} />
           <Route path="admin/students/:studentId/assignments" element={<RequireRole role="ADMIN"><StudentWorkPage /></RequireRole>} />
+          <Route path="admin/students/:studentId/assignments/:recipientId" element={<RequireRole role="ADMIN"><SubmissionPage audience="admin" /></RequireRole>} />
           <Route path="admin/resources" element={<RequireRole role="ADMIN"><ResourceLibraryPage /></RequireRole>} />
           <Route path="admin/resources/new" element={<RequireRole role="ADMIN"><ResourceEditorPage /></RequireRole>} />
           <Route path="admin/resources/:id" element={<RequireRole role="ADMIN"><ResourceDetailPage /></RequireRole>} />

@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/states/error-state";
 import { EmptyState } from "@/components/states/empty-state";
 import { Spinner } from "@/components/states/spinner";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/features/auth/auth-context";
 import { ApiError, getMyAssignments, getStudentAssignments } from "./api";
 
 function formatDue(value: string): string {
@@ -12,6 +13,7 @@ function formatDue(value: string): string {
 }
 
 export function WorkList({ studentId }: { studentId?: string }) {
+  const { user } = useAuth();
   const [rows, setRows] = useState<RecipientView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,13 +44,23 @@ export function WorkList({ studentId }: { studentId?: string }) {
     return <EmptyState title="No assignments" description="Published work for this student will be listed here." />;
   }
 
+  function href(id: string): string {
+    if (!studentId || user?.role === "STUDENT") {
+      return `/student/assignments/${id}`;
+    }
+    const root = user?.role === "ADMIN" ? "admin" : "mentor";
+    return `/${root}/students/${studentId}/assignments/${id}`;
+  }
+
   return (
     <ul className="grid gap-3">
       {rows.map((row) => (
         <li key={row.id} className="rounded-lg border bg-card px-4 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="font-medium">{row.assignment.title}</p>
+              <Link className="font-medium underline" to={href(row.id)}>
+                {row.assignment.title}
+              </Link>
               <p className="mt-1 text-sm text-muted-foreground">{row.assignment.description}</p>
               <p className="mt-2 text-sm">Due {formatDue(row.assignment.dueDate)}</p>
               {row.assignment.resourceId && !studentId ? (

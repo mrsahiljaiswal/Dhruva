@@ -63,6 +63,10 @@ export function PlanPanel() {
                     <Link className="font-medium underline" to={`/student/resources/${item.refId}`}>
                       {item.title}
                     </Link>
+                  ) : item.kind === "ASSIGNMENT" && item.recipientId ? (
+                    <Link className="font-medium underline" to={`/student/assignments/${item.recipientId}`}>
+                      {item.title ?? "Assignment"}
+                    </Link>
                   ) : (
                     <p className="font-medium">{item.title ?? "Untitled"}</p>
                   )}
@@ -83,7 +87,9 @@ export function PlanPanel() {
           <ul className="grid gap-2">
             {plan.deadlines.map((item) => (
               <li key={item.recipientId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span>{item.title}</span>
+                <Link className="underline" to={`/student/assignments/${item.recipientId}`}>
+                  {item.title}
+                </Link>
                 <span className="text-muted-foreground">
                   {formatDue(item.dueDate)}
                   {item.overdue ? " · Overdue" : ""}
