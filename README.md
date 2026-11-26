@@ -1,4 +1,4 @@
-# Dhruva-E-Learn
+# Dhruva
 
 DHRUVA is a learning and mentorship platform for first-year engineering students. This repository holds the approved design baseline: requirements, architecture, permissions, data model, API, workflows, security, deployment, and the implementation roadmap.
 
