@@ -32,6 +32,14 @@ import { createAssessmentRouter } from "./modules/assessments/routes.js";
 import { createMemoryAssessmentRepository, type AssessmentRepository } from "./modules/assessments/repository.js";
 import { createDiscussionRouter } from "./modules/discussions/routes.js";
 import { createMemoryDiscussionRepository, type DiscussionRepository } from "./modules/discussions/repository.js";
+import { createAnalyticsRouter } from "./modules/analytics/routes.js";
+import {
+  createMemoryExportRepository,
+  createMemoryLearningEventRepository,
+  createMemoryProgressRepository,
+} from "./modules/analytics/repository.js";
+import { registerProgressSubscriber } from "./modules/analytics/subscriber.js";
+import type { AnalyticsDeps } from "./modules/analytics/rebuild.js";
 import { grantedResourceIds } from "./modules/learning/grants.js";
 import type { UploadIntentRepository } from "./modules/resources/uploads.js";
 import type { ObjectStorage } from "./platform/storage.js";
@@ -92,6 +100,10 @@ export type AppDeps = {
     preferences?: PreferenceRepository;
     delivery?: Delivery;
     now?: () => Date;
+  };
+  analytics?: {
+    deps?: AnalyticsDeps;
+    enqueue?: (id: string) => Promise<void>;
   };
 };
 
@@ -221,6 +233,9 @@ export function createApp(deps: AppDeps): Express {
           }),
         );
       }
+      const revisions = deps.learning?.revisions ?? createMemorySubmissionRepository();
+      const assessments = deps.learning?.assessments ?? createMemoryAssessmentRepository();
+      const discussions = deps.discussions?.repository ?? createMemoryDiscussionRepository();
       if (deps.learning && deps.resources) {
         app.use(
           API_PREFIX,
@@ -242,7 +257,7 @@ export function createApp(deps: AppDeps): Express {
             mentorAssignments: deps.auth.directory.assignments,
             resources: deps.resources.repository,
             work: deps.learning.work,
-            revisions: deps.learning.revisions ?? createMemorySubmissionRepository(),
+            revisions,
             uploads: deps.resources.uploads,
             storage: deps.resources.storage,
             bus: deps.eventBus,
@@ -257,7 +272,7 @@ export function createApp(deps: AppDeps): Express {
             users: deps.auth.users,
             cohorts: deps.auth.directory.cohorts,
             mentorAssignments: deps.auth.directory.assignments,
-            assessments: deps.learning.assessments ?? createMemoryAssessmentRepository(),
+            assessments,
             bus: deps.eventBus,
             runner: deps.learning.runner ?? new ManualReviewRunner(),
             execution: deps.learning.execution ?? codeExecutionOff,
@@ -319,7 +334,7 @@ export function createApp(deps: AppDeps): Express {
             users: deps.auth.users,
             resources: deps.resources.repository,
             assignments: deps.auth.directory.assignments,
-            discussions: deps.discussions?.repository ?? createMemoryDiscussionRepository(),
+            discussions,
             bus: deps.eventBus,
             grants: deps.learning
               ? {
@@ -329,6 +344,35 @@ export function createApp(deps: AppDeps): Express {
               : undefined,
             reportLimit: deps.discussions?.reportLimit,
             now: deps.discussions?.now,
+          }),
+        );
+      }
+      if (deps.learning && deps.resources) {
+        const analytics: AnalyticsDeps = deps.analytics?.deps ?? {
+          users: deps.auth.users,
+          cohorts: deps.auth.directory.cohorts,
+          mentorAssignments: deps.auth.directory.assignments,
+          work: deps.learning.work,
+          resources: deps.resources.repository,
+          assessments,
+          revisions,
+          discussions,
+          settings,
+          progress: createMemoryProgressRepository(),
+          events: createMemoryLearningEventRepository(),
+          exports: createMemoryExportRepository(),
+          mailer: deps.mailer,
+          now: deps.learning.now ?? deps.messaging?.now,
+        };
+        registerProgressSubscriber(deps.eventBus, analytics);
+        app.use(
+          API_PREFIX,
+          createAnalyticsRouter({
+            users: deps.auth.users,
+            mentorAssignments: deps.auth.directory.assignments,
+            analytics,
+            bus: deps.eventBus,
+            enqueue: deps.analytics?.enqueue,
           }),
         );
       }

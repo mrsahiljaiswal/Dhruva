@@ -66,6 +66,19 @@ describe("can", () => {
     expect(can(student, "assessments.publish")).toBe(false);
   });
 
+  it("keeps progress and exports inside the role that owns them", () => {
+    const mentor: AuthUser = { ...admin, id: "mentor-1", role: "MENTOR" };
+    expect(can(student, "progress.own")).toBe(true);
+    expect(can(mentor, "progress.own")).toBe(false);
+    expect(can(mentor, "analytics.mentor")).toBe(true);
+    expect(can(student, "analytics.mentor")).toBe(false);
+    expect(can(admin, "analytics.admin")).toBe(true);
+    expect(can(mentor, "analytics.admin")).toBe(false);
+    expect(can(admin, "exports.manage")).toBe(true);
+    expect(can(mentor, "exports.manage")).toBe(false);
+    expect(can(student, "exports.manage")).toBe(false);
+  });
+
   it("lets only an admin change platform settings", () => {
     const mentor: AuthUser = { ...admin, id: "mentor-1", role: "MENTOR" };
     expect(can(admin, "settings.view")).toBe(true);

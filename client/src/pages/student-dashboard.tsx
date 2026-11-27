@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ApiStatus } from "@/components/api-status";
+import { ProgressPanel } from "@/features/analytics/progress-panel";
 import { PlanPanel } from "@/features/learning/plan-panel";
 
 export function StudentDashboard() {
@@ -12,6 +13,7 @@ export function StudentDashboard() {
         </div>
         <ApiStatus />
       </div>
+      <ProgressPanel />
       <PlanPanel />
       <Link to="/student/assignments" className="inline-block text-sm underline">
         All assignments

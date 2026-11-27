@@ -276,7 +276,7 @@ export function createAssessmentService(deps: AssessmentServiceDeps) {
       subjectType: "AssessmentAttempt",
       subjectId: updated.id,
       requestId: requestId ?? null,
-      after: { status: updated.status, autoScore: updated.autoScore },
+        after: { status: updated.status, autoScore: updated.autoScore, studentId: updated.studentId },
     });
     if (updated.status === "GRADED") {
       await deps.bus.emit({
@@ -285,7 +285,7 @@ export function createAssessmentService(deps: AssessmentServiceDeps) {
         subjectType: "AssessmentAttempt",
         subjectId: updated.id,
         requestId: requestId ?? null,
-        after: { totalScore: updated.totalScore },
+        after: { totalScore: updated.totalScore, studentId: updated.studentId },
       });
     }
     return updated;
@@ -604,7 +604,7 @@ export function createAssessmentService(deps: AssessmentServiceDeps) {
         subjectType: "AssessmentAttempt",
         subjectId: updated.id,
         requestId: requestId ?? null,
-        after: { totalScore: updated.totalScore },
+        after: { totalScore: updated.totalScore, studentId: updated.studentId },
       });
       return presentAttempt(updated, access.assessment, now());
     },

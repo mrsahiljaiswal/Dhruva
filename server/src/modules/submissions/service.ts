@@ -393,6 +393,14 @@ export function createSubmissionService(deps: SubmissionServiceDeps) {
       if (!moved) {
         throw new AppError(404, "NOT_FOUND", "That assignment was not found.");
       }
+      await deps.bus.emit({
+        action: "assignment.started",
+        actorId: access.actor.id,
+        subjectType: "Assignment",
+        subjectId: access.assignment.id,
+        after: { studentId: access.recipient.studentId, assignmentId: access.assignment.id, recipientId: moved.id },
+        requestId: requestId ?? null,
+      });
       return view(access, moved);
     },
 

@@ -23,10 +23,24 @@ function expectedVersion(header: string | undefined): number {
   return Number(value);
 }
 
-function present(record: { studentDirectMessages: boolean; groupChat: boolean; version: number }) {
+function present(record: {
+  studentDirectMessages: boolean;
+  groupChat: boolean;
+  supportThresholds: {
+    attentionCompletionPct: number;
+    interventionCompletionPct: number;
+    attentionAverageScore: number;
+    interventionAverageScore: number;
+    attentionOverdueCount: number;
+    interventionOverdueCount: number;
+    inactiveDays: number;
+  };
+  version: number;
+}) {
   return {
     studentDirectMessages: record.studentDirectMessages,
     groupChat: record.groupChat,
+    supportThresholds: record.supportThresholds,
     version: record.version,
   };
 }
@@ -83,10 +97,12 @@ export function createSettingsRouter(options: { users: UserRepository; settings:
         before: {
           studentDirectMessages: current.studentDirectMessages,
           groupChat: current.groupChat,
+          supportThresholds: current.supportThresholds,
         },
         after: {
           studentDirectMessages: updated.studentDirectMessages,
           groupChat: updated.groupChat,
+          supportThresholds: updated.supportThresholds,
         },
         requestId: req.id ?? null,
       });

@@ -296,6 +296,16 @@ export function createResourceService(deps: ResourceServiceDeps) {
     async get(userId: string, id: string, requestId?: string) {
       const actor = await actorFor(userId);
       const resource = await visibleResource(id, actor, requestId);
+      if (actor.role === "STUDENT") {
+        await deps.bus.emit({
+          action: "resource.opened",
+          actorId: actor.id,
+          subjectType: "Resource",
+          subjectId: resource.id,
+          after: { studentId: actor.id, resourceId: resource.id },
+          requestId: requestId ?? null,
+        });
+      }
       return { resource, body: presentResource(resource, actor) };
     },
 

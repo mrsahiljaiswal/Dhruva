@@ -1550,7 +1550,54 @@ export const messagingFeaturesResponseSchema = z.object({
   data: messagingFeaturesSchema,
 });
 
+export const DEFAULT_SUPPORT_THRESHOLDS = {
+  attentionCompletionPct: 70,
+  interventionCompletionPct: 40,
+  attentionAverageScore: 60,
+  interventionAverageScore: 40,
+  attentionOverdueCount: 1,
+  interventionOverdueCount: 3,
+  inactiveDays: 7,
+} as const;
+
+export const supportThresholdsSchema = z
+  .object({
+    attentionCompletionPct: z.number().min(0).max(100),
+    interventionCompletionPct: z.number().min(0).max(100),
+    attentionAverageScore: z.number().min(0).max(100),
+    interventionAverageScore: z.number().min(0).max(100),
+    attentionOverdueCount: z.number().int().min(0).max(1000),
+    interventionOverdueCount: z.number().int().min(0).max(1000),
+    inactiveDays: z.number().int().min(1).max(365),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.interventionCompletionPct > value.attentionCompletionPct) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interventionCompletionPct"],
+        message: "The intervention completion threshold cannot be higher than the attention threshold.",
+      });
+    }
+    if (value.interventionAverageScore > value.attentionAverageScore) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interventionAverageScore"],
+        message: "The intervention score threshold cannot be higher than the attention threshold.",
+      });
+    }
+    if (value.interventionOverdueCount < value.attentionOverdueCount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interventionOverdueCount"],
+        message: "The intervention overdue count cannot be lower than the attention count.",
+      });
+    }
+  });
+export type SupportThresholds = z.infer<typeof supportThresholdsSchema>;
+
 export const platformSettingsSchema = messagingFeaturesSchema.extend({
+  supportThresholds: supportThresholdsSchema,
   version: z.number().int(),
 });
 export type PlatformSettings = z.infer<typeof platformSettingsSchema>;
@@ -1563,12 +1610,243 @@ export const updatePlatformSettingsSchema = z
   .object({
     studentDirectMessages: z.boolean().optional(),
     groupChat: z.boolean().optional(),
+    supportThresholds: supportThresholdsSchema.optional(),
   })
   .strict()
-  .refine((value) => value.studentDirectMessages !== undefined || value.groupChat !== undefined, {
-    message: "Change at least one setting.",
-  });
+  .refine(
+    (value) =>
+      value.studentDirectMessages !== undefined || value.groupChat !== undefined || value.supportThresholds !== undefined,
+    { message: "Change at least one setting." },
+  );
 export type UpdatePlatformSettingsInput = z.infer<typeof updatePlatformSettingsSchema>;
+
+export const LEARNING_EVENT_TYPES = [
+  "RESOURCE_OPENED",
+  "ASSIGNMENT_STARTED",
+  "SUBMISSION_MADE",
+  "ATTEMPT_STARTED",
+  "ATTEMPT_GRADED",
+  "DOUBT_ASKED",
+] as const;
+export const learningEventTypeSchema = z.enum(LEARNING_EVENT_TYPES);
+export type LearningEventType = z.infer<typeof learningEventTypeSchema>;
+
+export const SUPPORT_INDICATORS = ["ON_TRACK", "NEEDS_ATTENTION", "MENTOR_INTERVENTION"] as const;
+export const supportIndicatorSchema = z.enum(SUPPORT_INDICATORS);
+export type SupportIndicator = z.infer<typeof supportIndicatorSchema>;
+
+export const SUPPORT_INDICATOR_NOTE =
+  "Support indicator. It does not block the student or change a grade.";
+
+export const topicProgressSchema = z.object({
+  topic: z.string(),
+  assignedCount: z.number().int(),
+  completedCount: z.number().int(),
+  completionPct: z.number().nullable(),
+  averageScore: z.number().nullable(),
+});
+export type TopicProgress = z.infer<typeof topicProgressSchema>;
+
+export const feedbackSnippetSchema = z.object({
+  assignmentTitle: z.string(),
+  feedback: z.string(),
+  reviewedAt: z.string(),
+  score: z.number().nullable(),
+});
+export type FeedbackSnippet = z.infer<typeof feedbackSnippetSchema>;
+
+export const activityDaySchema = z.object({
+  date: z.string(),
+  active: z.boolean(),
+});
+
+export const learningActivitySchema = z.object({
+  type: learningEventTypeSchema,
+  refType: z.string(),
+  refId: z.string(),
+  occurredAt: z.string(),
+});
+export type LearningActivity = z.infer<typeof learningActivitySchema>;
+
+export const studentProgressSchema = z.object({
+  studentId: z.string(),
+  assignedCount: z.number().int(),
+  completedCount: z.number().int(),
+  pendingCount: z.number().int(),
+  overdueCount: z.number().int(),
+  completionPct: z.number().nullable(),
+  averageScore: z.number().nullable(),
+  topicScores: z.array(topicProgressSchema),
+  weeklyActiveDays: z.number().int(),
+  week: z.array(activityDaySchema),
+  recentFeedback: z.array(feedbackSnippetSchema),
+  activity: z.array(learningActivitySchema),
+  computedAt: z.string(),
+});
+export type StudentProgressView = z.infer<typeof studentProgressSchema>;
+
+export const studentProgressResponseSchema = z.object({
+  data: studentProgressSchema,
+});
+
+export const supportedProgressSchema = studentProgressSchema.extend({
+  supportIndicator: supportIndicatorSchema,
+  supportReasons: z.array(z.string()),
+  thresholds: supportThresholdsSchema,
+  supportNote: z.string(),
+});
+export type SupportedProgress = z.infer<typeof supportedProgressSchema>;
+
+export const supportedProgressResponseSchema = z.object({
+  data: supportedProgressSchema,
+});
+
+export const mentorStudentProgressSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  branch: branchSchema.nullable(),
+  completionPct: z.number().nullable(),
+  averageScore: z.number().nullable(),
+  pendingCount: z.number().int(),
+  overdueCount: z.number().int(),
+  supportIndicator: supportIndicatorSchema,
+  supportReasons: z.array(z.string()),
+});
+
+export const assessmentTrendSchema = z.object({
+  week: z.string(),
+  averagePct: z.number().nullable(),
+  attempts: z.number().int(),
+});
+
+export const mentorAnalyticsSchema = z.object({
+  assignedStudents: z.number().int(),
+  completionPct: z.number().nullable(),
+  pendingSubmissions: z.number().int(),
+  unansweredDoubts: z.number().int(),
+  needingSupport: z.number().int(),
+  assessmentTrends: z.array(assessmentTrendSchema),
+  students: z.array(mentorStudentProgressSchema),
+  thresholds: supportThresholdsSchema,
+  supportNote: z.string(),
+});
+export type MentorAnalytics = z.infer<typeof mentorAnalyticsSchema>;
+
+export const mentorAnalyticsResponseSchema = z.object({
+  data: mentorAnalyticsSchema,
+});
+
+export const adminAnalyticsSchema = z.object({
+  totals: z.object({
+    users: z.number().int(),
+    students: z.number().int(),
+    mentors: z.number().int(),
+    admins: z.number().int(),
+    activeUsers: z.number().int(),
+    cohorts: z.number().int(),
+    publishedResources: z.number().int(),
+    publishedAssignments: z.number().int(),
+    publishedAssessments: z.number().int(),
+  }),
+  mentorWorkload: z.array(
+    z.object({
+      mentorId: z.string(),
+      name: z.string(),
+      students: z.number().int(),
+      pendingSubmissions: z.number().int(),
+      needingSupport: z.number().int(),
+    }),
+  ),
+  cohorts: z.array(
+    z.object({
+      cohortId: z.string(),
+      name: z.string(),
+      students: z.number().int(),
+      completionPct: z.number().nullable(),
+      averageScore: z.number().nullable(),
+      needingSupport: z.number().int(),
+    }),
+  ),
+  branches: z.array(
+    z.object({
+      branch: branchSchema,
+      students: z.number().int(),
+      completionPct: z.number().nullable(),
+      averageScore: z.number().nullable(),
+      needingSupport: z.number().int(),
+    }),
+  ),
+  topics: z.array(
+    z.object({
+      topic: z.string(),
+      students: z.number().int(),
+      completionPct: z.number().nullable(),
+      averageScore: z.number().nullable(),
+    }),
+  ),
+  assessments: z.array(
+    z.object({
+      assessmentId: z.string(),
+      title: z.string(),
+      attempts: z.number().int(),
+      averagePct: z.number().nullable(),
+      passRate: z.number().nullable(),
+    }),
+  ),
+  resourceCompletion: z.object({
+    published: z.number().int(),
+    opened: z.number().int(),
+    completionPct: z.number().nullable(),
+  }),
+  flagged: z.array(
+    z.object({
+      studentId: z.string(),
+      name: z.string(),
+      branch: branchSchema.nullable(),
+      cohortId: z.string().nullable(),
+      supportIndicator: supportIndicatorSchema,
+      supportReasons: z.array(z.string()),
+    }),
+  ),
+  thresholds: supportThresholdsSchema,
+  supportNote: z.string(),
+});
+export type AdminAnalytics = z.infer<typeof adminAnalyticsSchema>;
+
+export const adminAnalyticsResponseSchema = z.object({
+  data: adminAnalyticsSchema,
+});
+
+export const EXPORT_KINDS = ["STUDENT_PROGRESS", "MENTOR_ALLOCATION", "ASSESSMENTS", "COHORT_PERFORMANCE"] as const;
+export const exportKindSchema = z.enum(EXPORT_KINDS);
+export type ExportKind = z.infer<typeof exportKindSchema>;
+
+export const EXPORT_STATUSES = ["PENDING", "READY", "FAILED"] as const;
+export const exportStatusSchema = z.enum(EXPORT_STATUSES);
+export type ExportStatus = z.infer<typeof exportStatusSchema>;
+
+export const createExportSchema = z
+  .object({
+    kind: exportKindSchema,
+    cohortId: z.string().trim().min(1).optional(),
+  })
+  .strict();
+export type CreateExportInput = z.infer<typeof createExportSchema>;
+
+export const exportJobSchema = z.object({
+  id: z.string(),
+  kind: exportKindSchema,
+  status: exportStatusSchema,
+  createdAt: z.string(),
+  expiresAt: z.string().nullable(),
+  downloadUrl: z.string().nullable(),
+  downloadExpiresAt: z.string().nullable(),
+});
+export type ExportJob = z.infer<typeof exportJobSchema>;
+
+export const exportJobResponseSchema = z.object({
+  data: exportJobSchema,
+});
 
 export const socketJoinSchema = z
   .object({

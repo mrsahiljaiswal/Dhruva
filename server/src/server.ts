@@ -28,6 +28,14 @@ import { createMongoResourceRepository } from "./modules/resources/repository.js
 import { ensureReconcileSchedule, registerReconcileJob } from "./jobs/reconcile-recipients.js";
 import { ensureExpireSchedule, registerExpireJob } from "./jobs/expire-attempts.js";
 import { ensureDeadlineSchedule, registerDeadlineJob } from "./jobs/deadline-reminders.js";
+import { ensureRebuildSchedule, registerRebuildJob } from "./jobs/progress-rebuild.js";
+import { registerExportJob } from "./jobs/export-generate.js";
+import {
+  createMongoExportRepository,
+  createMongoLearningEventRepository,
+  createMongoProgressRepository,
+} from "./modules/analytics/repository.js";
+import type { AnalyticsDeps } from "./modules/analytics/rebuild.js";
 import { createMongoMessagingRepository } from "./modules/messaging/repository.js";
 import { createMongoNotificationRepository } from "./modules/notifications/repository.js";
 import { createMongoPreferenceRepository } from "./modules/notifications/preferences.js";
@@ -104,11 +112,32 @@ async function main(): Promise<void> {
   const learningPaths = createMongoLearningPathRepository();
   const work = createMongoWorkRepository();
   const assessments = createMongoAssessmentRepository();
+  const revisions = createMongoSubmissionRepository();
+  const resources = createMongoResourceRepository();
+  const discussions = createMongoDiscussionRepository();
   const cohorts = createMongoCohortRepository();
+  const analytics: AnalyticsDeps = {
+    users,
+    cohorts,
+    mentorAssignments,
+    work,
+    resources,
+    assessments,
+    revisions,
+    discussions,
+    settings,
+    progress: createMongoProgressRepository(),
+    events: createMongoLearningEventRepository(),
+    exports: createMongoExportRepository(),
+    mailer,
+    appBaseUrl: env.APP_BASE_URL,
+  };
   const agenda = createAgenda(env.MONGODB_URI);
   registerReconcileJob(agenda, { work, users, mentorAssignments, bus });
   registerExpireJob(agenda, { users, cohorts, mentorAssignments, assessments, bus, runner: new ManualReviewRunner(), execution: codeExecutionOff });
   registerDeadlineJob(agenda, { users, notifications, preferences, mailer, delivery, logger, work, assignments: mentorAssignments });
+  registerRebuildJob(agenda, analytics);
+  registerExportJob(agenda, analytics);
   agenda.on("error", (error: unknown) => {
     logger.error({ err: error }, "job scheduler error");
   });
@@ -116,6 +145,7 @@ async function main(): Promise<void> {
   await ensureReconcileSchedule(agenda);
   await ensureExpireSchedule(agenda);
   await ensureDeadlineSchedule(agenda);
+  await ensureRebuildSchedule(agenda);
 
   const app = createApp({
     clientOrigin: env.CLIENT_ORIGIN,
@@ -138,18 +168,24 @@ async function main(): Promise<void> {
     learning: {
       paths: learningPaths,
       work,
-      revisions: createMongoSubmissionRepository(),
+      revisions,
       runner: new ManualReviewRunner(),
       execution: codeExecutionOff,
       assessments,
     },
     resources: {
-      repository: createMongoResourceRepository(),
+      repository: resources,
       uploads: createMongoUploadRepository(),
       storage: createObjectStorage(env),
     },
     discussions: {
-      repository: createMongoDiscussionRepository(),
+      repository: discussions,
+    },
+    analytics: {
+      deps: analytics,
+      enqueue: async (id) => {
+        await agenda.now("export.generate", { exportId: id });
+      },
     },
     messaging: {
       repository: messagingRepository,

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AdminAnalyticsPanel } from "@/features/analytics/admin-analytics";
 import { useAuth } from "@/features/auth/auth-context";
 
 const AREAS = [
@@ -114,6 +115,8 @@ export function AdminDashboard() {
         </div>
         <ApiStatus />
       </div>
+
+      <AdminAnalyticsPanel />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[

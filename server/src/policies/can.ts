@@ -29,7 +29,11 @@ export type Action =
   | "assessments.publish"
   | "plan.view"
   | "settings.view"
-  | "settings.update";
+  | "settings.update"
+  | "progress.own"
+  | "analytics.mentor"
+  | "analytics.admin"
+  | "exports.manage";
 
 export type Subject = { type: "profile"; userId: string } | { type: "user" };
 
@@ -78,8 +82,16 @@ export function can(user: AuthUser, action: Action, subject?: Subject): boolean 
     return user.role === "STUDENT";
   }
 
-  if (action === "settings.view" || action === "settings.update") {
+  if (action === "settings.view" || action === "settings.update" || action === "analytics.admin" || action === "exports.manage") {
     return user.role === "ADMIN";
+  }
+
+  if (action === "analytics.mentor") {
+    return user.role === "MENTOR";
+  }
+
+  if (action === "progress.own") {
+    return user.role === "STUDENT";
   }
 
   if (action === "profile.view" || action === "profile.update") {

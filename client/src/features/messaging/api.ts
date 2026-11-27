@@ -107,7 +107,7 @@ export async function loadSettings(): Promise<{ settings: PlatformSettings; etag
 
 export async function saveSettings(
   etag: string,
-  patch: Partial<Pick<PlatformSettings, "studentDirectMessages" | "groupChat">>,
+  patch: Partial<Pick<PlatformSettings, "studentDirectMessages" | "groupChat" | "supportThresholds">>,
 ): Promise<PlatformSettings> {
   const response = await request("/settings", {
     method: "PATCH",

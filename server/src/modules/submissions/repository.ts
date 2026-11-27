@@ -51,6 +51,7 @@ export type InsertResult =
 
 export interface SubmissionRepository {
   listForRecipient(recipientId: string): Promise<RevisionRecord[]>;
+  listWithFeedback(): Promise<RevisionRecord[]>;
   findById(id: string): Promise<RevisionRecord | null>;
   findByKey(recipientId: string, idempotencyKey: string): Promise<RevisionRecord | null>;
   insert(input: NewRevision): Promise<InsertResult>;
@@ -94,6 +95,11 @@ export function createMemorySubmissionRepository(): SubmissionRepository {
       return rows
         .filter((row) => row.recipientId === recipientId)
         .sort((left, right) => left.revisionNo - right.revisionNo)
+        .map((row) => clone(row));
+    },
+    async listWithFeedback() {
+      return rows
+        .filter((row) => row.feedback !== null && row.feedback.trim().length > 0 && row.reviewedAt !== null)
         .map((row) => clone(row));
     },
     async findById(id) {
@@ -258,6 +264,10 @@ export function createMongoSubmissionRepository(): SubmissionRepository {
         return [];
       }
       const docs = await RevisionModel.find({ recipientId }).sort({ revisionNo: 1 }).lean();
+      return docs.map((doc) => toRevision(doc));
+    },
+    async listWithFeedback() {
+      const docs = await RevisionModel.find({ feedback: { $type: "string", $ne: "" }, reviewedAt: { $ne: null } }).lean();
       return docs.map((doc) => toRevision(doc));
     },
     async findById(id) {

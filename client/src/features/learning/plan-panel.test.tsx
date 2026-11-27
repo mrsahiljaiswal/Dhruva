@@ -60,6 +60,29 @@ describe("student plan", () => {
         if (url.includes("/me/plan")) {
           return { ok: true, status: 200, json: async () => ({ data: plan }) };
         }
+        if (url.includes("/me/progress")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                studentId: "student-1",
+                assignedCount: 1,
+                completedCount: 0,
+                pendingCount: 0,
+                overdueCount: 1,
+                completionPct: 0,
+                averageScore: null,
+                topicScores: [],
+                weeklyActiveDays: 0,
+                week: [],
+                recentFeedback: [],
+                activity: [],
+                computedAt: "2026-08-01T00:00:00.000Z",
+              },
+            }),
+          };
+        }
         return { ok: true, status: 200, json: async () => ({ data: [] }) };
       }),
     );
@@ -76,7 +99,7 @@ describe("student plan", () => {
     expect(await screen.findByRole("heading", { name: "Today" })).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "Arrays" })).toBeInTheDocument();
     expect(screen.getByText("Ada's practice")).toBeInTheDocument();
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getAllByText("Overdue").length).toBeGreaterThan(0);
     expect(screen.getByText("Day 1 of the program")).toBeInTheDocument();
   });
 });

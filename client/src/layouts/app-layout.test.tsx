@@ -40,6 +40,29 @@ function mockSession(user: PublicUser | null) {
       if (url.includes("/health")) {
         return { ok: true, status: 200, json: async () => ({ data: { status: "ok" } }) };
       }
+      if (url.includes("/me/progress")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              studentId: "student-1",
+              assignedCount: 0,
+              completedCount: 0,
+              pendingCount: 0,
+              overdueCount: 0,
+              completionPct: null,
+              averageScore: null,
+              topicScores: [],
+              weeklyActiveDays: 0,
+              week: [],
+              recentFeedback: [],
+              activity: [],
+              computedAt: "2026-08-01T00:00:00.000Z",
+            },
+          }),
+        };
+      }
       if (url.includes("/me/plan")) {
         return {
           ok: true,
