@@ -80,9 +80,6 @@ export function presentThread(
 }
 
 export function presentReport(report: ReportRecord): ReportView {
-  if (report.targetType === "MESSAGE") {
-    throw new Error("Message reports are not filed in this phase.");
-  }
   return {
     id: report.id,
     targetType: report.targetType,

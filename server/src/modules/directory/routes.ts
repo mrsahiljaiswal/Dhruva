@@ -9,6 +9,7 @@ import type { AuthService } from "../auth/service.js";
 import { asyncRoute, revokeUserSessions } from "../auth/session.js";
 import { DuplicateCohortError, type CohortRepository } from "../cohorts/repository.js";
 import { assignStudents, reassignStudents, type AssignmentRepository } from "../mentors/assignments.js";
+import { deactivateAccount } from "../users/deactivate.js";
 import { createImportStore, parseImportCsv } from "../users/import.js";
 import type { UserRepository } from "../users/repository.js";
 
@@ -227,22 +228,15 @@ export function createManagementRouter(options: {
     guard,
     authorize("users.deactivate"),
     asyncRoute(async (req, res) => {
-      if (req.params.id === req.user!.id) {
-        throw new AppError(400, "VALIDATION_ERROR", "You cannot deactivate your own account.");
-      }
-      const current = await options.users.findById(req.params.id);
-      if (!current) {
-        throw new AppError(404, "NOT_FOUND", "That person was not found.");
-      }
-      const updated = await options.users.update(current.id, { status: "DEACTIVATED" });
-      await options.bus.emit({
-        action: "user.deactivated",
+      const updated = await deactivateAccount({
+        users: options.users,
+        bus: options.bus,
         actorId: req.user!.id,
-        subjectType: "User",
-        subjectId: current.id,
+        userId: req.params.id,
+        requestId: req.id,
+        revokeSessions: (userId) => revokeUserSessions(req, userId),
       });
-      await revokeUserSessions(req, current.id);
-      res.json({ data: { id: updated!.id, status: updated!.status } });
+      res.json({ data: { id: updated.id, status: updated.status } });
     }),
   );
 

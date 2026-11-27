@@ -33,7 +33,10 @@ export type Action =
   | "progress.own"
   | "analytics.mentor"
   | "analytics.admin"
-  | "exports.manage";
+  | "exports.manage"
+  | "announcements.manage"
+  | "reports.review"
+  | "audit.read";
 
 export type Subject = { type: "profile"; userId: string } | { type: "user" };
 
@@ -82,7 +85,15 @@ export function can(user: AuthUser, action: Action, subject?: Subject): boolean 
     return user.role === "STUDENT";
   }
 
-  if (action === "settings.view" || action === "settings.update" || action === "analytics.admin" || action === "exports.manage") {
+  if (
+    action === "settings.view" ||
+    action === "settings.update" ||
+    action === "analytics.admin" ||
+    action === "exports.manage" ||
+    action === "announcements.manage" ||
+    action === "reports.review" ||
+    action === "audit.read"
+  ) {
     return user.role === "ADMIN";
   }
 

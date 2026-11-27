@@ -16,6 +16,7 @@ import type { EventBus } from "../../events/bus.js";
 import { AppError } from "../../middleware/errors.js";
 import { validateBody } from "../../middleware/validate.js";
 import { authenticate } from "../../policies/authenticate.js";
+import type { MessagingRepository } from "../messaging/repository.js";
 import type { AssignmentRepository } from "../mentors/assignments.js";
 import { asyncRoute } from "../auth/session.js";
 import type { ResourceRepository } from "../resources/repository.js";
@@ -70,6 +71,7 @@ export function createDiscussionRouter(options: {
   resources: ResourceRepository;
   assignments: AssignmentRepository;
   discussions: DiscussionRepository;
+  messaging?: MessagingRepository;
   bus: EventBus;
   grants?: DiscussionGrantSource;
   reportLimit?: { limit: number; windowMs: number };
@@ -83,6 +85,7 @@ export function createDiscussionRouter(options: {
     resources: options.resources,
     assignments: options.assignments,
     discussions: options.discussions,
+    messaging: options.messaging,
     bus: options.bus,
     grants: options.grants,
     now: options.now,

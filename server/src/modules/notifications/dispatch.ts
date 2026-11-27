@@ -17,6 +17,9 @@ const SUBJECTS: Record<NotificationType, string> = {
   MENTOR_REASSIGNED: "Mentor reassignment",
   DISCUSSION_REPORTED: "New report",
   BREAK_GLASS: "Private conversation opened",
+  CONTENT_HIDDEN: "Content hidden",
+  ACCOUNT_WARNING: "Account warning",
+  ACCOUNT_SUSPENDED: "Account suspended",
 };
 
 export async function deliverNotification(

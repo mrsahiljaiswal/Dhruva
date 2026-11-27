@@ -64,6 +64,8 @@ export interface MessagingRepository {
   insertMessage(input: NewMessage): Promise<MessageRecord>;
   listMessages(conversationId: string, page: number, limit: number): Promise<{ rows: MessageRecord[]; total: number }>;
   findMessage(id: string): Promise<MessageRecord | null>;
+  findMessageById(id: string): Promise<MessageRecord | null>;
+  hideMessage(id: string, deletedAt: Date): Promise<MessageRecord | null>;
   markRead(conversationId: string, userId: string, upTo: Date, readAt: Date): Promise<void>;
   unreadCount(conversationId: string, userId: string): Promise<number>;
 }
@@ -142,6 +144,18 @@ export function createMemoryMessagingRepository(): MessagingRepository {
     async findMessage(id) {
       const found = messages.find((row) => row.id === id && !row.deletedAt);
       return found ? cloneMessage(found) : null;
+    },
+    async findMessageById(id) {
+      const found = messages.find((row) => row.id === id);
+      return found ? cloneMessage(found) : null;
+    },
+    async hideMessage(id, deletedAt) {
+      const found = messages.find((row) => row.id === id);
+      if (!found) {
+        return null;
+      }
+      found.deletedAt = new Date(deletedAt);
+      return cloneMessage(found);
     },
     async markRead(conversationId, userId, upTo, readAt) {
       for (const row of messages) {
@@ -335,6 +349,20 @@ export function createMongoMessagingRepository(): MessagingRepository {
         return null;
       }
       const doc = await MessageModel.findOne({ _id: id, deletedAt: null }).lean();
+      return doc ? toMessage(doc) : null;
+    },
+    async findMessageById(id) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await MessageModel.findById(id).lean();
+      return doc ? toMessage(doc) : null;
+    },
+    async hideMessage(id, deletedAt) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await MessageModel.findByIdAndUpdate(id, { $set: { deletedAt } }, { new: true }).lean();
       return doc ? toMessage(doc) : null;
     },
     async markRead(conversationId, userId, upTo, readAt) {

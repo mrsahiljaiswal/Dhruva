@@ -79,6 +79,16 @@ describe("can", () => {
     expect(can(student, "exports.manage")).toBe(false);
   });
 
+  it("lets only an admin publish announcements, review reports, and read the audit log", () => {
+    const mentor: AuthUser = { ...admin, id: "mentor-1", role: "MENTOR" };
+    expect(can(admin, "announcements.manage")).toBe(true);
+    expect(can(admin, "reports.review")).toBe(true);
+    expect(can(admin, "audit.read")).toBe(true);
+    expect(can(mentor, "announcements.manage")).toBe(false);
+    expect(can(mentor, "reports.review")).toBe(false);
+    expect(can(student, "audit.read")).toBe(false);
+  });
+
   it("lets only an admin change platform settings", () => {
     const mentor: AuthUser = { ...admin, id: "mentor-1", role: "MENTOR" };
     expect(can(admin, "settings.view")).toBe(true);

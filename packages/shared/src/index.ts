@@ -1214,7 +1214,7 @@ export const REACTION_KINDS = ["HELPFUL", "LIKE"] as const;
 export const reactionKindSchema = z.enum(REACTION_KINDS);
 export type ReactionKind = z.infer<typeof reactionKindSchema>;
 
-export const REPORT_TARGETS = ["POST", "COMMENT", "USER"] as const;
+export const REPORT_TARGETS = ["POST", "COMMENT", "MESSAGE", "USER"] as const;
 export const reportTargetSchema = z.enum(REPORT_TARGETS);
 export type ReportTarget = z.infer<typeof reportTargetSchema>;
 
@@ -1382,6 +1382,178 @@ export const reportResponseSchema = z.object({
   data: reportViewSchema,
 });
 
+export const MODERATION_ACTIONS = ["DISMISS", "HIDE", "WARN", "SUSPEND"] as const;
+export const moderationActionSchema = z.enum(MODERATION_ACTIONS);
+export type ModerationAction = z.infer<typeof moderationActionSchema>;
+
+export const resolveReportSchema = z
+  .object({
+    action: moderationActionSchema,
+    note: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
+export type ResolveReportInput = z.infer<typeof resolveReportSchema>;
+
+export const reportListQuerySchema = z
+  .object({
+    status: reportStatusSchema.optional(),
+  })
+  .strict();
+export type ReportListQuery = z.infer<typeof reportListQuerySchema>;
+
+export const reportQueueItemSchema = z.object({
+  id: z.string(),
+  targetType: reportTargetSchema,
+  targetId: z.string(),
+  reportedBy: z.string(),
+  reportedByName: z.string(),
+  reason: z.string(),
+  status: reportStatusSchema,
+  resolution: moderationActionSchema.nullable(),
+  resolvedBy: z.string().nullable(),
+  resolvedAt: z.string().nullable(),
+  createdAt: z.string(),
+  target: z
+    .object({
+      authorId: z.string().nullable(),
+      authorName: z.string().nullable(),
+      excerpt: z.string(),
+      hidden: z.boolean(),
+    })
+    .nullable(),
+});
+export type ReportQueueItem = z.infer<typeof reportQueueItemSchema>;
+
+export const reportQueueResponseSchema = z.object({
+  data: z.array(reportQueueItemSchema),
+});
+
+export const reportQueueItemResponseSchema = z.object({
+  data: reportQueueItemSchema,
+});
+
+export const ANNOUNCEMENT_AUDIENCES = ["ALL", "COHORT", "BRANCH", "MENTOR_GROUP"] as const;
+export const announcementAudienceSchema = z.enum(ANNOUNCEMENT_AUDIENCES);
+export type AnnouncementAudience = z.infer<typeof announcementAudienceSchema>;
+
+export const ANNOUNCEMENT_STATUSES = ["SCHEDULED", "PUBLISHED", "EXPIRED"] as const;
+export const announcementStatusSchema = z.enum(ANNOUNCEMENT_STATUSES);
+export type AnnouncementStatus = z.infer<typeof announcementStatusSchema>;
+
+function announcementTargetIssues(
+  audience: AnnouncementAudience,
+  targetIds: string[],
+  publishAt: string | undefined,
+  expiresAt: string | null | undefined,
+  ctx: RefinementCtx,
+): void {
+  if (audience === "ALL" && targetIds.length > 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetIds"], message: "An announcement for everyone has no extra targets." });
+  }
+  if (audience !== "ALL" && targetIds.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetIds"], message: "Choose who should see this." });
+  }
+  if (publishAt && expiresAt && expiresAt <= publishAt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["expiresAt"], message: "Expiry must be after publishing." });
+  }
+}
+
+export const createAnnouncementSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    body: z.string().trim().min(1).max(20_000),
+    audience: announcementAudienceSchema,
+    targetIds: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
+    publishAt: z.string().datetime().optional(),
+    expiresAt: z.string().datetime().nullable().optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => announcementTargetIssues(value.audience, value.targetIds, value.publishAt, value.expiresAt, ctx));
+export type CreateAnnouncementInput = z.infer<typeof createAnnouncementSchema>;
+
+export const patchAnnouncementSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    body: z.string().trim().min(1).max(20_000).optional(),
+    audience: announcementAudienceSchema.optional(),
+    targetIds: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+    publishAt: z.string().datetime().optional(),
+    expiresAt: z.string().datetime().nullable().optional(),
+    expireNow: z.boolean().optional(),
+  })
+  .strict()
+  .refine((value) => Object.values(value).some((item) => item !== undefined), { message: "Change at least one field." });
+export type PatchAnnouncementInput = z.infer<typeof patchAnnouncementSchema>;
+
+export const announcementSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  body: z.string(),
+  audience: announcementAudienceSchema,
+  targetIds: z.array(z.string()),
+  publishAt: z.string(),
+  expiresAt: z.string().nullable(),
+  createdBy: z.string(),
+  status: announcementStatusSchema,
+  createdAt: z.string(),
+});
+export type Announcement = z.infer<typeof announcementSchema>;
+
+export const announcementResponseSchema = z.object({
+  data: announcementSchema,
+});
+
+export const announcementListResponseSchema = z.object({
+  data: z.array(announcementSchema),
+});
+
+export const auditListQuerySchema = z
+  .object({
+    actorId: z.string().trim().min(1).max(80).optional(),
+    action: z.string().trim().min(1).max(80).optional(),
+    subjectType: z.string().trim().min(1).max(80).optional(),
+    subjectId: z.string().trim().min(1).max(80).optional(),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(PAGINATION.maxLimit).default(PAGINATION.defaultLimit),
+  })
+  .strict();
+export type AuditListQuery = z.infer<typeof auditListQuerySchema>;
+
+export const auditSubjectParamsSchema = z
+  .object({
+    subjectType: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,40}$/),
+    subjectId: z.string().trim().min(1).max(80),
+  })
+  .strict();
+
+export const auditEntrySchema = z.object({
+  id: z.string(),
+  actorId: z.string().nullable(),
+  action: z.string(),
+  subjectType: z.string(),
+  subjectId: z.string().nullable(),
+  before: z.record(z.unknown()).nullable(),
+  after: z.record(z.unknown()).nullable(),
+  reason: z.string().nullable(),
+  requestId: z.string().nullable(),
+  ip: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type AuditEntry = z.infer<typeof auditEntrySchema>;
+
+export const auditListResponseSchema = z.object({
+  data: z.array(auditEntrySchema),
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+});
+
+export const auditHistoryResponseSchema = z.object({
+  data: z.array(auditEntrySchema),
+});
+
 export const reactionResultSchema = z.object({
   targetType: reactionTargetSchema,
   targetId: z.string(),
@@ -1409,6 +1581,9 @@ export const NOTIFICATION_TYPES = [
   "MENTOR_REASSIGNED",
   "DISCUSSION_REPORTED",
   "BREAK_GLASS",
+  "CONTENT_HIDDEN",
+  "ACCOUNT_WARNING",
+  "ACCOUNT_SUSPENDED",
 ] as const;
 export const notificationTypeSchema = z.enum(NOTIFICATION_TYPES);
 export type NotificationType = z.infer<typeof notificationTypeSchema>;

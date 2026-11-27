@@ -85,7 +85,7 @@ export type ReactionRecord = {
 
 export type ReportRecord = {
   id: string;
-  targetType: ReportTarget | "MESSAGE";
+  targetType: ReportTarget;
   targetId: string;
   reportedBy: string;
   reason: string;
@@ -118,6 +118,14 @@ export interface DiscussionRepository {
   listReactions(targetType: ReactionTarget, targetIds: string[]): Promise<ReactionRecord[]>;
   toggleReaction(input: Omit<ReactionRecord, "id">): Promise<boolean>;
   insertReport(input: NewReport): Promise<StoredReport>;
+  listReports(filter: { status?: ReportStatus; limit: number }): Promise<ReportRecord[]>;
+  findReport(id: string): Promise<ReportRecord | null>;
+  resolveReport(
+    id: string,
+    patch: { status: ReportStatus; resolution: string; resolvedBy: string; resolvedAt: Date },
+  ): Promise<ReportRecord | null>;
+  hidePost(id: string, deletedAt: Date): Promise<PostRecord | null>;
+  hideComment(id: string, deletedAt: Date): Promise<CommentRecord | null>;
 }
 
 export function searchTerms(value: string): string[] {
@@ -300,6 +308,45 @@ export function createMemoryDiscussionRepository(): DiscussionRepository {
       };
       reports.push(row);
       return { report: cloneReport(row), created: true };
+    },
+    async listReports(filter) {
+      return reports
+        .filter((report) => (filter.status ? report.status === filter.status : true))
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+        .slice(0, filter.limit)
+        .map(cloneReport);
+    },
+    async findReport(id) {
+      const row = reports.find((report) => report.id === id);
+      return row ? cloneReport(row) : null;
+    },
+    async resolveReport(id, patch) {
+      const row = reports.find((report) => report.id === id && report.status === "OPEN");
+      if (!row) {
+        return null;
+      }
+      row.status = patch.status;
+      row.resolution = patch.resolution;
+      row.resolvedBy = patch.resolvedBy;
+      row.resolvedAt = new Date(patch.resolvedAt);
+      return cloneReport(row);
+    },
+    async hidePost(id, deletedAt) {
+      const row = posts.find((post) => post.id === id);
+      if (!row) {
+        return null;
+      }
+      row.deletedAt = new Date(deletedAt);
+      row.updatedAt = new Date(deletedAt);
+      return clonePost(row);
+    },
+    async hideComment(id, deletedAt) {
+      const row = comments.find((comment) => comment.id === id);
+      if (!row) {
+        return null;
+      }
+      row.deletedAt = new Date(deletedAt);
+      return cloneComment(row);
     },
   };
 }
@@ -667,6 +714,46 @@ export function createMongoDiscussionRepository(): DiscussionRepository {
         }
         return { report: toReport(again), created: false };
       }
+    },
+    async listReports(filter) {
+      const query: Record<string, unknown> = {};
+      if (filter.status) {
+        query.status = filter.status;
+      }
+      const docs = await ReportModel.find(query).sort({ createdAt: -1 }).limit(filter.limit).lean<ReportDoc[]>();
+      return docs.map(toReport);
+    },
+    async findReport(id) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await ReportModel.findById(id).lean<ReportDoc | null>();
+      return doc ? toReport(doc) : null;
+    },
+    async resolveReport(id, patch) {
+      if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(patch.resolvedBy)) {
+        return null;
+      }
+      const doc = await ReportModel.findOneAndUpdate(
+        { _id: id, status: "OPEN" },
+        { $set: { status: patch.status, resolution: patch.resolution, resolvedBy: patch.resolvedBy, resolvedAt: patch.resolvedAt } },
+        { new: true },
+      ).lean<ReportDoc | null>();
+      return doc ? toReport(doc) : null;
+    },
+    async hidePost(id, deletedAt) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await PostModel.findByIdAndUpdate(id, { $set: { deletedAt, updatedAt: deletedAt } }, { new: true }).lean<PostDoc | null>();
+      return doc ? toPost(doc) : null;
+    },
+    async hideComment(id, deletedAt) {
+      if (!mongoose.isValidObjectId(id)) {
+        return null;
+      }
+      const doc = await CommentModel.findByIdAndUpdate(id, { $set: { deletedAt } }, { new: true }).lean<CommentDoc | null>();
+      return doc ? toComment(doc) : null;
     },
   };
 }

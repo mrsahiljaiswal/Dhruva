@@ -20,6 +20,7 @@ import type { AssignmentRepository } from "../mentors/assignments.js";
 import { stripHtml } from "../resources/markdown.js";
 import { canViewResource, type ResourceViewer } from "../resources/access.js";
 import type { ResourceRepository } from "../resources/repository.js";
+import type { MessagingRepository } from "../messaging/repository.js";
 import type { UserRepository } from "../users/repository.js";
 import type { CommentRecord, DiscussionRepository, PostRecord } from "./repository.js";
 import { presentPost, presentReport, presentThread } from "./serialize.js";
@@ -35,6 +36,7 @@ export type DiscussionServiceDeps = {
   resources: ResourceRepository;
   assignments: AssignmentRepository;
   discussions: DiscussionRepository;
+  messaging?: MessagingRepository;
   bus: EventBus;
   grants?: DiscussionGrantSource;
   now?: () => Date;
@@ -465,6 +467,26 @@ export function createDiscussionService(deps: DiscussionServiceDeps) {
         await requirePost(actor, input.targetId, requestId);
       } else if (input.targetType === "COMMENT") {
         await requireComment(actor, input.targetId, requestId);
+      } else if (input.targetType === "MESSAGE") {
+        if (!deps.messaging) {
+          throw new AppError(422, "UNPROCESSABLE", "Message reports are not available.");
+        }
+        const message = await deps.messaging.findMessage(input.targetId);
+        if (!message) {
+          throw new AppError(404, "NOT_FOUND", "That message was not found.");
+        }
+        const conversation = await deps.messaging.findById(message.conversationId);
+        const allowed = actor.role === "ADMIN" || conversation?.participantIds.includes(actor.id) === true;
+        if (!allowed) {
+          await deps.bus.emit({
+            action: "security.access_denied",
+            actorId: actor.id,
+            subjectType: "Message",
+            subjectId: message.id,
+            requestId: requestId ?? null,
+          });
+          throw new AppError(403, "FORBIDDEN", "You do not have access to this message.");
+        }
       } else {
         if (input.targetId === actor.id) {
           throw new AppError(422, "UNPROCESSABLE", "You cannot report your own account.");

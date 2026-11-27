@@ -51,6 +51,10 @@ import { createMemoryNotificationRepository, type NotificationRepository } from 
 import { createMemoryPreferenceRepository, type PreferenceRepository } from "./modules/notifications/preferences.js";
 import { createSettingsRouter } from "./modules/settings/routes.js";
 import { createMemorySettingsRepository, type SettingsRepository } from "./modules/settings/repository.js";
+import { createModerationRouter } from "./modules/moderation/routes.js";
+import type { AnnouncementRepository } from "./modules/moderation/repository.js";
+import { createAuditRouter } from "./modules/audit/routes.js";
+import type { AuditLogRepository } from "./modules/audit/repository.js";
 import { noopDelivery, type Delivery } from "./realtime/delivery.js";
 
 export type AppDeps = {
@@ -104,6 +108,13 @@ export type AppDeps = {
   analytics?: {
     deps?: AnalyticsDeps;
     enqueue?: (id: string) => Promise<void>;
+  };
+  moderation?: {
+    announcements?: AnnouncementRepository;
+    now?: () => Date;
+  };
+  audit?: {
+    log?: AuditLogRepository;
   };
 };
 
@@ -327,6 +338,26 @@ export function createApp(deps: AppDeps): Express {
           now: deps.messaging?.now,
         }),
       );
+      app.use(
+        API_PREFIX,
+        createModerationRouter({
+          users: deps.auth.users,
+          cohorts: deps.auth.directory.cohorts,
+          assignments: deps.auth.directory.assignments,
+          discussions,
+          messaging: messagingRepository,
+          bus: deps.eventBus,
+          announcements: deps.moderation?.announcements,
+          now: deps.moderation?.now ?? deps.messaging?.now,
+        }),
+      );
+      app.use(
+        API_PREFIX,
+        createAuditRouter({
+          users: deps.auth.users,
+          log: deps.audit?.log,
+        }),
+      );
       if (deps.resources) {
         app.use(
           API_PREFIX,
@@ -335,6 +366,7 @@ export function createApp(deps: AppDeps): Express {
             resources: deps.resources.repository,
             assignments: deps.auth.directory.assignments,
             discussions,
+            messaging: messagingRepository,
             bus: deps.eventBus,
             grants: deps.learning
               ? {

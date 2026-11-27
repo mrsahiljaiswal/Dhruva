@@ -19,6 +19,12 @@ function destination(item: Notification, role: string | undefined): string | nul
   if (item.payload.postId) {
     return `/forum/${item.payload.postId}`;
   }
+  if (item.payload.announcementId) {
+    return "/announcements";
+  }
+  if (item.type === "DISCUSSION_REPORTED" && role === "ADMIN") {
+    return "/admin/reports";
+  }
   if (item.type === "ASSIGNMENT_PUBLISHED" || item.type === "DEADLINE_UPCOMING" || item.type === "MENTOR_FEEDBACK") {
     if (role === "STUDENT") return "/student/assignments";
     if (role === "MENTOR") return "/mentor/assignments";

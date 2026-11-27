@@ -198,6 +198,40 @@ export function registerNotificationSubscriber(bus: EventBus, deps: Notification
     }
   });
 
+  bus.on("moderation.action_taken", async (event) => {
+    const userId = asString(event.after?.userId);
+    const action = asString(event.after?.action);
+    if (!userId || userId === event.actorId || action === "DISMISS" || !action) {
+      return;
+    }
+    const note = asString(event.reason);
+    if (action === "HIDE") {
+      await notify({
+        userId,
+        type: "CONTENT_HIDDEN",
+        text: "An administrator hid content you posted.",
+        payload: payload({ reportId: event.subjectId }),
+        dedupeKey: event.subjectId ? `moderation:${event.subjectId}` : null,
+      });
+    } else if (action === "WARN") {
+      await notify({
+        userId,
+        type: "ACCOUNT_WARNING",
+        text: note ? note.slice(0, 140) : "An administrator sent you a warning.",
+        payload: payload({ reportId: event.subjectId }),
+        dedupeKey: event.subjectId ? `moderation:${event.subjectId}` : null,
+      });
+    } else if (action === "SUSPEND") {
+      await notify({
+        userId,
+        type: "ACCOUNT_SUSPENDED",
+        text: "Your account was suspended.",
+        payload: payload({ reportId: event.subjectId }),
+        dedupeKey: event.subjectId ? `moderation:${event.subjectId}` : null,
+      });
+    }
+  });
+
   bus.on("security.break_glass", async (event: DomainEvent) => {
     const admins = await deps.users.list({ role: "ADMIN", status: "ACTIVE" });
     for (const admin of admins) {

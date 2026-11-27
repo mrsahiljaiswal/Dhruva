@@ -152,4 +152,49 @@ describe("notification subscriber", () => {
     expect(emails[0]?.text).toContain("You have a new message.");
     expect(emails[0]?.text).not.toContain("secret phrase");
   });
+
+  it("notifies the person named in a warning and stays quiet on a dismissal", async () => {
+    const users = createMemoryUserRepository();
+    const student = await users.create({
+      name: "Ada",
+      email: "ada@example.com",
+      passwordHash: null,
+      role: "STUDENT",
+      branch: "CSE",
+      cohortId: null,
+      status: "ACTIVE",
+      capabilities: { canCreateResources: false, canCreateAssessments: false, canGradeAssessments: false },
+      invitedAt: null,
+      activatedAt: new Date(),
+    });
+    const notifications = createMemoryNotificationRepository();
+    const bus = new EventBus(logger);
+    registerNotificationSubscriber(bus, {
+      users,
+      notifications,
+      preferences: createMemoryPreferenceRepository(),
+      delivery: noopDelivery,
+      logger,
+    });
+    await bus.emit({
+      action: "moderation.action_taken",
+      actorId: "admin-1",
+      subjectType: "Report",
+      subjectId: "report-1",
+      reason: "Please keep posts on the topic.",
+      after: { action: "WARN", userId: student.id },
+    });
+    await bus.emit({
+      action: "moderation.action_taken",
+      actorId: "admin-1",
+      subjectType: "Report",
+      subjectId: "report-2",
+      reason: "Not a problem.",
+      after: { action: "DISMISS", userId: student.id },
+    });
+    const inbox = await notifications.listForUser(student.id, 10);
+    expect(inbox.rows).toEqual([
+      expect.objectContaining({ type: "ACCOUNT_WARNING", text: "Please keep posts on the topic." }),
+    ]);
+  });
 });

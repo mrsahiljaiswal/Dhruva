@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import { loadEnv } from "./config/env.js";
 import { createApp } from "./app.js";
 import { createAgenda } from "./jobs/agenda.js";
+import { createMongoAuditLogRepository } from "./modules/audit/repository.js";
 import { registerAuditSubscriber } from "./modules/audit/subscriber.js";
 import { EventBus } from "./events/bus.js";
 import { createLogger } from "./platform/logger.js";
@@ -30,6 +31,8 @@ import { ensureExpireSchedule, registerExpireJob } from "./jobs/expire-attempts.
 import { ensureDeadlineSchedule, registerDeadlineJob } from "./jobs/deadline-reminders.js";
 import { ensureRebuildSchedule, registerRebuildJob } from "./jobs/progress-rebuild.js";
 import { registerExportJob } from "./jobs/export-generate.js";
+import { ensureAnnouncementSchedule, registerAnnouncementJob } from "./jobs/publish-announcements.js";
+import { createMongoAnnouncementRepository } from "./modules/moderation/repository.js";
 import {
   createMongoExportRepository,
   createMongoLearningEventRepository,
@@ -68,7 +71,8 @@ async function main(): Promise<void> {
   await mongoose.connect(env.MONGODB_URI);
 
   const bus = new EventBus(logger);
-  registerAuditSubscriber(bus);
+  const auditLog = createMongoAuditLogRepository();
+  registerAuditSubscriber(bus, auditLog);
   const messagingRepository = createMongoMessagingRepository();
   const settings = createMongoSettingsRepository();
   const notifications = createMongoNotificationRepository();
@@ -138,6 +142,8 @@ async function main(): Promise<void> {
   registerDeadlineJob(agenda, { users, notifications, preferences, mailer, delivery, logger, work, assignments: mentorAssignments });
   registerRebuildJob(agenda, analytics);
   registerExportJob(agenda, analytics);
+  const announcements = createMongoAnnouncementRepository();
+  registerAnnouncementJob(agenda, { announcements, users, assignments: mentorAssignments, bus });
   agenda.on("error", (error: unknown) => {
     logger.error({ err: error }, "job scheduler error");
   });
@@ -146,6 +152,7 @@ async function main(): Promise<void> {
   await ensureExpireSchedule(agenda);
   await ensureDeadlineSchedule(agenda);
   await ensureRebuildSchedule(agenda);
+  await ensureAnnouncementSchedule(agenda);
 
   const app = createApp({
     clientOrigin: env.CLIENT_ORIGIN,
@@ -194,6 +201,8 @@ async function main(): Promise<void> {
       preferences,
       delivery,
     },
+    moderation: { announcements },
+    audit: { log: auditLog },
   });
 
   const server = createServer(app);
